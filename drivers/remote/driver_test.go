@@ -198,6 +198,13 @@ func (test *testEndpoint) DisableGatewayService() {
 	test.disableGatewayService = true
 }
 
+func (test *testEndpoint) IPAliases() []*net.IPNet {
+	return nil
+}
+func (test *testEndpoint) SetIPAliases(aliases []*net.IPNet) error {
+	return nil
+}
+
 func TestGetEmptyCapabilities(t *testing.T) {
 	var plugin = "test-net-driver-empty-cap"
 
@@ -518,6 +525,14 @@ func (r *rollbackEndpoint) SetMacAddress(mac net.HardwareAddr) error {
 
 func (r *rollbackEndpoint) SetIPAddress(ip *net.IPNet) error {
 	return fmt.Errorf("invalid ip")
+}
+
+func (r *rollbackEndpoint) IPAliases() []*net.IPNet {
+	return nil
+}
+
+func (r *rollbackEndpoint) SetIPAliases(aliases []*net.IPNet) error {
+	return nil
 }
 
 func TestRollback(t *testing.T) {

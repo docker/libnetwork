@@ -367,6 +367,14 @@ func (i *testInterface) AddressIPv6() *net.IPNet {
 	return i.addrv6
 }
 
+func (i *testInterface) IPAliases() []*net.IPNet {
+	return nil
+}
+
+func (i *testInterface) SetIPAliases(aliases []*net.IPNet) error {
+	return nil
+}
+
 func (i *testInterface) SetMacAddress(mac net.HardwareAddr) error {
 	if i.mac != nil {
 		return types.ForbiddenErrorf("endpoint interface MAC address present (%s). Cannot be modified with %s.", i.mac, mac)

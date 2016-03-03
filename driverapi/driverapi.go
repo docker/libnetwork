@@ -66,6 +66,12 @@ type InterfaceInfo interface {
 
 	// AddressIPv6 returns the IPv6 address.
 	AddressIPv6() *net.IPNet
+
+	// IPAliases returns the list of IP aliases
+	IPAliases() []*net.IPNet
+
+	// SetIPAliases sets the list of IP aliases
+	SetIPAliases(aliases []*net.IPNet) error
 }
 
 // InterfaceNameInfo provides a go interface for the drivers to assign names

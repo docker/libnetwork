@@ -94,6 +94,13 @@ func (ep *endpoint) AddStaticRoute(destination *net.IPNet, routeType int,
 
 func (ep *endpoint) DisableGatewayService() {}
 
+func (ep *endpoint) IPAliases() []*net.IPNet {
+	return nil
+}
+func (ep *endpoint) SetIPAliases(aliases []*net.IPNet) error {
+	return nil
+}
+
 func main() {
 	if reexec.Init() {
 		return

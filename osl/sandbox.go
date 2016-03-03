@@ -89,6 +89,9 @@ type IfaceOptionSetter interface {
 
 	// Address returns an option setter to set interface routes.
 	Routes([]*net.IPNet) IfaceOption
+
+	// IPAliases returns an option setter to set IP Aliases.
+	IPAliases([]*net.IPNet) IfaceOption
 }
 
 // Info represents all possible information that
@@ -150,4 +153,7 @@ type Interface interface {
 
 	// Statistics returns the statistics for this interface
 	Statistics() (*types.InterfaceStatistics, error)
+
+	// IP Aliases  for the interface.
+	IPAliases() []*net.IPNet
 }

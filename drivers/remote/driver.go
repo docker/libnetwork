@@ -113,6 +113,9 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	if ifInfo.MacAddress() != nil {
 		reqIface.MacAddress = ifInfo.MacAddress().String()
 	}
+	for _, ips := range ifInfo.IPAliases() {
+		reqIface.IPAliases = append(reqIface.IPAliases, ips.String())
+	}
 
 	create := &api.CreateEndpointRequest{
 		NetworkID:  nid,
@@ -147,6 +150,11 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	if inIface.AddressIPv6 != nil {
 		if err := ifInfo.SetIPAddress(inIface.AddressIPv6); err != nil {
 			return errorWithRollback(fmt.Sprintf("driver modified interface address: %v", err), d.DeleteEndpoint(nid, eid))
+		}
+	}
+	if inIface.IPAliases != nil {
+		if err := ifInfo.SetIPAliases(inIface.IPAliases); err != nil {
+			return errorWithRollback(fmt.Sprintf("driver modified interface aliases: %v", err), d.DeleteEndpoint(nid, eid))
 		}
 	}
 
@@ -319,6 +327,14 @@ func parseInterface(r api.CreateEndpointResponse) (*api.Interface, error) {
 		}
 		if inIf.MacAddress != "" {
 			if outIf.MacAddress, err = net.ParseMAC(inIf.MacAddress); err != nil {
+				return nil, err
+			}
+		}
+		for _, alias := range inIf.IPAliases {
+			if i, err := types.ParseCIDR(alias); err == nil {
+				outIf.IPAliases = append(outIf.IPAliases, i)
+			} else {
+				// returning error if any alias is wrong
 				return nil, err
 			}
 		}

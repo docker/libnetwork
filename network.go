@@ -680,13 +680,11 @@ func (n *network) addEndpoint(ep *endpoint) error {
 	if err != nil {
 		return fmt.Errorf("failed to add endpoint: %v", err)
 	}
-
 	err = d.CreateEndpoint(n.id, ep.id, ep.Interface(), ep.generic)
 	if err != nil {
 		return types.InternalErrorf("failed to create endpoint %s on network %s: %v",
 			ep.Name(), n.Name(), err)
 	}
-
 	return nil
 }
 
@@ -719,6 +717,10 @@ func (n *network) CreateEndpoint(name string, options ...EndpointOption) (Endpoi
 		if mac, ok := opt.(net.HardwareAddr); ok {
 			ep.iface.mac = mac
 		}
+	}
+	for _, al := range ep.ipAliases {
+		ipn := &net.IPNet{IP: al, Mask: net.IPMask{255, 255, 255, 255}}
+		ep.iface.ipAliases = append(ep.iface.ipAliases, ipn)
 	}
 
 	ipam, err := n.getController().getIPAM(n.ipamType)

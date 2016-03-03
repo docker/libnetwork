@@ -208,6 +208,8 @@ func TestEndpointMarshalling(t *testing.T) {
 		t.Fatal(err)
 	}
 	nw6.IP = ip
+	alias1 := &net.IPNet{IP: net.IP{8, 8, 8, 8}, Mask: net.IPMask{255, 255, 255, 255}}
+	alias2 := &net.IPNet{IP: net.IP{9, 9, 9, 9}, Mask: net.IPMask{255, 255, 255, 255}}
 
 	e := &endpoint{
 		name:      "Bau",
@@ -225,6 +227,10 @@ func TestEndpointMarshalling(t *testing.T) {
 			dstPrefix: "eth",
 			v4PoolID:  "poolpool",
 			v6PoolID:  "poolv6",
+			ipAliases: []*net.IPNet{
+				alias1,
+				alias2,
+			},
 		},
 	}
 
@@ -244,6 +250,26 @@ func TestEndpointMarshalling(t *testing.T) {
 	}
 }
 
+func compareIPNetSlice(a, b []*net.IPNet) bool {
+	var found bool
+
+	if len(a) != len(b) {
+		return false
+	}
+	for _, x := range a {
+		found = false
+		for _, y := range b {
+			if types.CompareIPNet(x, y) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
 func compareEndpointInterface(a, b *endpointInterface) bool {
 	if a == b {
 		return true
@@ -252,7 +278,8 @@ func compareEndpointInterface(a, b *endpointInterface) bool {
 		return false
 	}
 	return a.srcName == b.srcName && a.dstPrefix == b.dstPrefix && a.v4PoolID == b.v4PoolID && a.v6PoolID == b.v6PoolID &&
-		types.CompareIPNet(a.addr, b.addr) && types.CompareIPNet(a.addrv6, b.addrv6)
+		types.CompareIPNet(a.addr, b.addr) && types.CompareIPNet(a.addrv6, b.addrv6) &&
+		compareIPNetSlice(a.ipAliases, b.ipAliases)
 }
 
 func compareIpamConfList(listA, listB []*IpamConf) bool {

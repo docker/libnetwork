@@ -17,15 +17,16 @@ import (
 type IfaceOption func(i *nwIface)
 
 type nwIface struct {
-	srcName     string
-	dstName     string
-	master      string
-	dstMaster   string
-	address     *net.IPNet
-	addressIPv6 *net.IPNet
-	routes      []*net.IPNet
-	bridge      bool
-	ns          *networkNamespace
+	srcName        string
+	dstName        string
+	master         string
+	dstMaster      string
+	address        *net.IPNet
+	addressIPv6    *net.IPNet
+	routes         []*net.IPNet
+	bridge         bool
+	ns             *networkNamespace
+	addressAliases []*net.IPNet
 	sync.Mutex
 }
 
@@ -82,13 +83,22 @@ func (i *nwIface) Routes() []*net.IPNet {
 	i.Lock()
 	defer i.Unlock()
 
-	routes := make([]*net.IPNet, len(i.routes))
-	for index, route := range i.routes {
-		r := types.GetIPNetCopy(route)
-		routes[index] = r
+	var routes []*net.IPNet
+	for _, route := range i.routes {
+		routes = append(routes, types.GetIPNetCopy(route))
 	}
-
 	return routes
+}
+
+func (i *nwIface) IPAliases() []*net.IPNet {
+	i.Lock()
+	defer i.Unlock()
+
+	var aliases []*net.IPNet
+	for _, alias := range i.addressAliases {
+		aliases = append(aliases, types.GetIPNetCopy(alias))
+	}
+	return aliases
 }
 
 func (n *networkNamespace) Interfaces() []Interface {
@@ -306,6 +316,7 @@ func configureInterface(iface netlink.Link, i *nwIface) error {
 		{setInterfaceName, fmt.Sprintf("error renaming interface %q to %q", ifaceName, i.DstName())},
 		{setInterfaceIP, fmt.Sprintf("error setting interface %q IP to %q", ifaceName, i.Address())},
 		{setInterfaceIPv6, fmt.Sprintf("error setting interface %q IPv6 to %q", ifaceName, i.AddressIPv6())},
+		{setInterfaceAddrAliases, fmt.Sprintf("error setting interface %q IP Aliases to %q", ifaceName, i.IPAliases())},
 		{setInterfaceMaster, fmt.Sprintf("error setting interface %q master to %q", ifaceName, i.DstMaster())},
 	}
 
@@ -333,6 +344,16 @@ func setInterfaceIP(iface netlink.Link, i *nwIface) error {
 
 	ipAddr := &netlink.Addr{IPNet: i.Address(), Label: ""}
 	return netlink.AddrAdd(iface, ipAddr)
+}
+
+func setInterfaceAddrAliases(iface netlink.Link, i *nwIface) error {
+	for _, ip := range i.IPAliases() {
+		ipAddr := &netlink.Addr{IPNet: ip, Label: ""}
+		if err := netlink.AddrAdd(iface, ipAddr); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func setInterfaceIPv6(iface netlink.Link, i *nwIface) error {

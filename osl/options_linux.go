@@ -59,3 +59,9 @@ func (n *networkNamespace) Routes(routes []*net.IPNet) IfaceOption {
 		i.routes = routes
 	}
 }
+
+func (n *networkNamespace) IPAliases(aliases []*net.IPNet) IfaceOption {
+	return func(i *nwIface) {
+		i.addressAliases = aliases
+	}
+}

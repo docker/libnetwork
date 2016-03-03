@@ -726,6 +726,52 @@ func TestNetworkEndpointsWalkers(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+func TestEndpointWithAlias(t *testing.T) {
+
+	if !testutils.IsRunningInContainer() {
+		defer testutils.SetupTestOSContext(t)()
+	}
+
+	netOption := options.Generic{
+		netlabel.GenericData: options.Generic{
+			"BridgeName": "testnetwork",
+		},
+	}
+	n, err := createTestNetwork(bridgeNetType, "testnetwork", netOption, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := n.Delete(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	alias1 := net.ParseIP("8.8.8.8")
+	aliases := []net.IP{
+		alias1,
+	}
+
+	ep, err := n.CreateEndpoint("ep1", libnetwork.CreateOptionIpam(net.ParseIP(""), net.ParseIP(""), aliases, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	iface := ep.Info().Iface()
+	ipN := &net.IPNet{
+		IP:   alias1,
+		Mask: net.IPMask{255, 255, 255, 255},
+	}
+	if !types.CompareIPNet(ipN, iface.IPAliases()[0]) {
+		t.Fatalf("Expected %v. Got: %v", ipN, iface.IPAliases()[0])
+	}
+
+	defer func() {
+		if err := ep.Delete(false); err != nil {
+			t.Fatal(err)
+		}
+	}()
+}
 
 func TestDuplicateEndpoint(t *testing.T) {
 	if !testutils.IsRunningInContainer() {

@@ -64,6 +64,7 @@ type endpoint struct {
 	joinLeaveDone     chan struct{}
 	prefAddress       net.IP
 	prefAddressV6     net.IP
+	ipAliases         []net.IP
 	ipamOptions       map[string]string
 	aliases           map[string]string
 	myAliases         []string
@@ -89,6 +90,12 @@ func (ep *endpoint) MarshalJSON() ([]byte, error) {
 	epMap["anonymous"] = ep.anonymous
 	epMap["disableResolution"] = ep.disableResolution
 	epMap["myAliases"] = ep.myAliases
+	var aliases []string
+	for _, ips := range ep.ipAliases {
+		aliases = append(aliases, ips.String())
+	}
+	epMap["ipAliases"] = aliases
+
 	return json.Marshal(epMap)
 }
 
@@ -176,6 +183,18 @@ func (ep *endpoint) UnmarshalJSON(b []byte) (err error) {
 	var myAliases []string
 	json.Unmarshal(ma, &myAliases)
 	ep.myAliases = myAliases
+
+	al, _ := json.Marshal(epMap["ipAlias"])
+	var ipAliases []string
+	json.Unmarshal(al, &ipAliases)
+	ep.ipAliases = make([]net.IP, 0)
+	for _, ip := range ipAliases {
+		netip, err := types.ParseCIDR(ip)
+		if err == nil {
+			ep.ipAliases = append(ep.ipAliases, netip.IP)
+		}
+	}
+
 	return nil
 }
 
@@ -748,10 +767,11 @@ func EndpointOptionGeneric(generic map[string]interface{}) EndpointOption {
 }
 
 // CreateOptionIpam function returns an option setter for the ipam configuration for this endpoint
-func CreateOptionIpam(ipV4, ipV6 net.IP, ipamOptions map[string]string) EndpointOption {
+func CreateOptionIpam(ipV4, ipV6 net.IP, ipAliases []net.IP, ipamOptions map[string]string) EndpointOption {
 	return func(ep *endpoint) {
 		ep.prefAddress = ipV4
 		ep.prefAddressV6 = ipV6
+		ep.ipAliases = ipAliases
 		ep.ipamOptions = ipamOptions
 	}
 }
