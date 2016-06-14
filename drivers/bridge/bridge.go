@@ -99,6 +99,8 @@ type bridgeEndpoint struct {
 	containerConfig *containerConfiguration
 	extConnConfig   *connectivityConfiguration
 	portMapping     []types.PortBinding // Operation port bindings
+	hostIfName      string              // name of the virtual interface on the host
+	containerIfName string              // name of the virtual interface on the container
 }
 
 type bridgeNetwork struct {
@@ -900,12 +902,14 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	if err != nil {
 		return err
 	}
+	endpoint.hostIfName = hostIfName
 
 	// Generate a name for what will be the sandbox side pipe interface
 	containerIfName, err := netutils.GenerateIfaceName(d.nlh, vethPrefix, vethLen)
 	if err != nil {
 		return err
 	}
+	endpoint.containerIfName = containerIfName
 
 	// Generate and add the interface pipe host <-> sandbox
 	veth := &netlink.Veth{
@@ -1123,6 +1127,14 @@ func (d *driver) EndpointOperInfo(nid, eid string) (map[string]interface{}, erro
 
 	if len(ep.macAddress) != 0 {
 		m[netlabel.MacAddress] = ep.macAddress
+	}
+
+	if len(ep.hostIfName) != 0 {
+		m[netlabel.Prefix+".bridge.host.ifname"] = ep.hostIfName
+	}
+
+	if len(ep.containerIfName) != 0 {
+		m[netlabel.Prefix+".bridge.container.ifname"] = ep.containerIfName
 	}
 
 	return m, nil
