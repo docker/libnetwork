@@ -47,7 +47,7 @@ func setupDriver(t *testing.T) *driverTester {
 		t.Fatal(err)
 	}
 	data := discoverapi.NodeDiscoveryData{
-		Address: addrs[0].String(),
+		Address: addrs[0].(*net.IPNet).IP.String(),
 		Self:    true,
 	}
 	dt.d.DiscoverNew(discoverapi.NodeDiscovery, data)
