@@ -212,8 +212,14 @@ func (sb *sandbox) setupDNS() error {
 		if err != nil {
 			return err
 		}
-	} else {
+		// Assign newRC to currRC for further processing of resolvconf.FilterResolvDNS (if needed) below
+		currRC = newRC
+	}
+
+	// In case DNS is not provided, the resolv.conf needs to be filtered to replace any localhost/127.*
+	if len(sb.config.dnsList) == 0 {
 		// Replace any localhost/127.* (at this point we have no info about ipv6, pass it as true)
+		// In updateDNS() ipv6 info will be available
 		if newRC, err = resolvconf.FilterResolvDNS(currRC.Content, true); err != nil {
 			return err
 		}
@@ -242,7 +248,12 @@ func (sb *sandbox) updateDNS(ipv6Enabled bool) error {
 		return nil
 	}
 
-	if len(sb.config.dnsList) > 0 || len(sb.config.dnsSearchList) > 0 || len(sb.config.dnsOptionsList) > 0 {
+	// See setupDNS() for related implementation. In case
+	// - len(sb.config.dnsList) == 0:
+	//   FilterResolvDNS was invoked in setupDNS() with ipv6 info unknown. Need to update with ipv6Enabled here
+	// - len(sb.config.dnsList) > 0:
+	//   FilterResolvDNS was not invoked in setupDNS(). Skip update here.
+	if len(sb.config.dnsList) > 0 {
 		return nil
 	}
 
