@@ -380,7 +380,7 @@ func (n *bridgeNetwork) restorePortAllocations(ep *bridgeEndpoint) {
 	}
 	tmp := ep.extConnConfig.PortBindings
 	ep.extConnConfig.PortBindings = ep.portMapping
-	_, err := n.allocatePorts(ep, n.config.DefaultBindingIP, n.driver.config.EnableUserlandProxy)
+	_, err := n.allocatePorts(ep, n.config.DefaultBindingIP)
 	if err != nil {
 		logrus.Warnf("Failed to reserve existing port mapping for endpoint %s:%v", ep.id[0:7], err)
 	}

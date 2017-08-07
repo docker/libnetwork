@@ -525,7 +525,7 @@ func (d *driver) createNetwork(config *networkConfiguration) error {
 		id:         config.ID,
 		endpoints:  make(map[string]*bridgeEndpoint),
 		config:     config,
-		portMapper: portmapper.New(""),
+		portMapper: portmapper.New(),
 		driver:     d,
 	}
 

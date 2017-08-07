@@ -7,6 +7,7 @@ import (
 
 	"github.com/docker/libnetwork/iptables"
 	_ "github.com/docker/libnetwork/testutils"
+	"github.com/docker/libnetwork/types"
 )
 
 func init() {
@@ -15,7 +16,7 @@ func init() {
 }
 
 func TestSetIptablesChain(t *testing.T) {
-	pm := New("")
+	pm := New()
 
 	c := &iptables.ChainInfo{
 		Name: "TEST",
@@ -32,47 +33,53 @@ func TestSetIptablesChain(t *testing.T) {
 }
 
 func TestMapTCPPorts(t *testing.T) {
-	pm := New("")
+	pm := New(WithUserlandProxy(true, ""))
 	dstIP1 := net.ParseIP("192.168.0.1")
 	dstIP2 := net.ParseIP("192.168.0.2")
-	dstAddr1 := &net.TCPAddr{IP: dstIP1, Port: 80}
-	dstAddr2 := &net.TCPAddr{IP: dstIP2, Port: 80}
+	srcIP1 := net.ParseIP("172.16.0.1")
+	srcIP2 := net.ParseIP("172.16.0.2")
 
-	srcAddr1 := &net.TCPAddr{Port: 1080, IP: net.ParseIP("172.16.0.1")}
-	srcAddr2 := &net.TCPAddr{Port: 1080, IP: net.ParseIP("172.16.0.2")}
-
-	addrEqual := func(addr1, addr2 net.Addr) bool {
-		return (addr1.Network() == addr2.Network()) && (addr1.String() == addr2.String())
+	binding := types.PortBinding{
+		Proto:    types.TCP,
+		IP:       srcIP1,
+		Port:     1080,
+		HostIP:   dstIP1,
+		HostPort: 80,
 	}
 
-	if host, err := pm.Map(srcAddr1, dstIP1, 80, true); err != nil {
-		t.Fatalf("Failed to allocate port: %s", err)
-	} else if !addrEqual(dstAddr1, host) {
-		t.Fatalf("Incorrect mapping result: expected %s:%s, got %s:%s",
-			dstAddr1.String(), dstAddr1.Network(), host.String(), host.Network())
-	}
-
-	if _, err := pm.Map(srcAddr1, dstIP1, 80, true); err == nil {
-		t.Fatalf("Port is in use - mapping should have failed")
-	}
-
-	if _, err := pm.Map(srcAddr2, dstIP1, 80, true); err == nil {
-		t.Fatalf("Port is in use - mapping should have failed")
-	}
-
-	if _, err := pm.Map(srcAddr2, dstIP2, 80, true); err != nil {
+	b := binding.GetCopy()
+	host1, err := pm.mapPort(&b)
+	if err != nil {
 		t.Fatalf("Failed to allocate port: %s", err)
 	}
 
-	if pm.Unmap(dstAddr1) != nil {
+	if _, err := pm.mapPort(&b); err == nil {
+		t.Fatalf("Port is in use - mapping should have failed")
+	}
+
+	b = binding.GetCopy()
+	b.IP = srcIP2
+	if host, err := pm.mapPort(&b); err == nil {
+		t.Fatalf("Port is in use - mapping should have failed: %v", host)
+	}
+
+	b = binding.GetCopy()
+	b.HostIP = dstIP2
+	b.IP = srcIP2
+	host2, err := pm.mapPort(&b)
+	if err != nil {
+		t.Fatalf("Failed to allocate port: %s", err)
+	}
+
+	if pm.Unmap(host1) != nil {
 		t.Fatalf("Failed to release port")
 	}
 
-	if pm.Unmap(dstAddr2) != nil {
+	if pm.Unmap(host2) != nil {
 		t.Fatalf("Failed to release port")
 	}
 
-	if pm.Unmap(dstAddr2) == nil {
+	if pm.Unmap(host2) == nil {
 		t.Fatalf("Port already released, but no error reported")
 	}
 }
@@ -111,107 +118,115 @@ func TestGetUDPIPAndPort(t *testing.T) {
 }
 
 func TestMapUDPPorts(t *testing.T) {
-	pm := New("")
+	pm := New(WithUserlandProxy(true, ""))
 	dstIP1 := net.ParseIP("192.168.0.1")
 	dstIP2 := net.ParseIP("192.168.0.2")
-	dstAddr1 := &net.UDPAddr{IP: dstIP1, Port: 80}
-	dstAddr2 := &net.UDPAddr{IP: dstIP2, Port: 80}
+	srcIP1 := net.ParseIP("172.16.0.1")
+	srcIP2 := net.ParseIP("172.16.0.2")
 
-	srcAddr1 := &net.UDPAddr{Port: 1080, IP: net.ParseIP("172.16.0.1")}
-	srcAddr2 := &net.UDPAddr{Port: 1080, IP: net.ParseIP("172.16.0.2")}
-
-	addrEqual := func(addr1, addr2 net.Addr) bool {
-		return (addr1.Network() == addr2.Network()) && (addr1.String() == addr2.String())
+	binding := types.PortBinding{
+		Proto:    types.UDP,
+		IP:       srcIP1,
+		Port:     1080,
+		HostIP:   dstIP1,
+		HostPort: 80,
 	}
 
-	if host, err := pm.Map(srcAddr1, dstIP1, 80, true); err != nil {
-		t.Fatalf("Failed to allocate port: %s", err)
-	} else if !addrEqual(dstAddr1, host) {
-		t.Fatalf("Incorrect mapping result: expected %s:%s, got %s:%s",
-			dstAddr1.String(), dstAddr1.Network(), host.String(), host.Network())
-	}
-
-	if _, err := pm.Map(srcAddr1, dstIP1, 80, true); err == nil {
-		t.Fatalf("Port is in use - mapping should have failed")
-	}
-
-	if _, err := pm.Map(srcAddr2, dstIP1, 80, true); err == nil {
-		t.Fatalf("Port is in use - mapping should have failed")
-	}
-
-	if _, err := pm.Map(srcAddr2, dstIP2, 80, true); err != nil {
+	b := binding.GetCopy()
+	host1, err := pm.mapPort(&b)
+	if err != nil {
 		t.Fatalf("Failed to allocate port: %s", err)
 	}
 
-	if pm.Unmap(dstAddr1) != nil {
+	if _, err := pm.mapPort(&b); err == nil {
+		t.Fatalf("Port is in use - mapping should have failed")
+	}
+
+	b = binding.GetCopy()
+	b.IP = srcIP2
+	if _, err := pm.mapPort(&b); err == nil {
+		t.Fatalf("Port is in use - mapping should have failed")
+	}
+
+	b = binding.GetCopy()
+	b.IP = srcIP2
+	b.HostIP = dstIP2
+	host2, err := pm.mapPort(&b)
+	if err != nil {
+		t.Fatalf("Failed to allocate port: %s", err)
+	}
+
+	if pm.Unmap(host1) != nil {
 		t.Fatalf("Failed to release port")
 	}
 
-	if pm.Unmap(dstAddr2) != nil {
+	if pm.Unmap(host2) != nil {
 		t.Fatalf("Failed to release port")
 	}
 
-	if pm.Unmap(dstAddr2) == nil {
+	if pm.Unmap(host2) == nil {
 		t.Fatalf("Port already released, but no error reported")
 	}
 }
 
 func TestMapAllPortsSingleInterface(t *testing.T) {
-	pm := New("")
-	dstIP1 := net.ParseIP("0.0.0.0")
-	srcAddr1 := &net.TCPAddr{Port: 1080, IP: net.ParseIP("172.16.0.1")}
+	pm := New(WithUserlandProxy(true, ""))
+	binding := types.PortBinding{
+		Proto:  types.TCP,
+		IP:     net.ParseIP("172.16.0.1"),
+		Port:   1080,
+		HostIP: net.ParseIP("0.0.0.0"),
+	}
 
-	hosts := []net.Addr{}
-	var host net.Addr
-	var err error
+	var hosts []net.Addr
 
-	defer func() {
+	cleanup := func() error {
 		for _, val := range hosts {
-			pm.Unmap(val)
+			if err := pm.Unmap(val); err != nil {
+				return err
+			}
 		}
-	}()
+		hosts = []net.Addr{}
+		return nil
+	}
+	defer cleanup()
 
 	for i := 0; i < 10; i++ {
 		start, end := pm.Allocator.Begin, pm.Allocator.End
-		for i := start; i < end; i++ {
-			if host, err = pm.Map(srcAddr1, dstIP1, 0, true); err != nil {
-				t.Fatal(err)
+		for j := start; j < end; j++ {
+			b := binding.GetCopy()
+			host, err := pm.mapPort(&b)
+			if err != nil {
+				t.Fatalf("Failed to allocate port from pool %d-%d for binding %v on iteration %d(%d): %v", start, end, binding, i, j, err)
 			}
-
 			hosts = append(hosts, host)
 		}
 
-		if _, err := pm.Map(srcAddr1, dstIP1, start, true); err == nil {
+		b := binding.GetCopy()
+		b.HostPort = uint16(start)
+		if _, err := pm.mapPort(&b); err == nil {
 			t.Fatalf("Port %d should be bound but is not", start)
 		}
 
-		for _, val := range hosts {
-			if err := pm.Unmap(val); err != nil {
-				t.Fatal(err)
-			}
+		if err := cleanup(); err != nil {
+			t.Fatal(err)
 		}
-
-		hosts = []net.Addr{}
 	}
 }
 
 func TestMapTCPDummyListen(t *testing.T) {
-	pm := New("")
-	dstIP := net.ParseIP("0.0.0.0")
-	dstAddr := &net.TCPAddr{IP: dstIP, Port: 80}
-
-	// no-op for dummy
-	srcAddr := &net.TCPAddr{Port: 1080, IP: net.ParseIP("172.16.0.1")}
-
-	addrEqual := func(addr1, addr2 net.Addr) bool {
-		return (addr1.Network() == addr2.Network()) && (addr1.String() == addr2.String())
+	pm := New()
+	binding := types.PortBinding{
+		Proto:    types.TCP,
+		IP:       net.ParseIP("172.16.0.1"),
+		Port:     1080,
+		HostIP:   net.ParseIP("0.0.0.0"),
+		HostPort: 80,
 	}
 
-	if host, err := pm.Map(srcAddr, dstIP, 80, false); err != nil {
+	b := binding.GetCopy()
+	if _, err := pm.mapPort(&b); err != nil {
 		t.Fatalf("Failed to allocate port: %s", err)
-	} else if !addrEqual(dstAddr, host) {
-		t.Fatalf("Incorrect mapping result: expected %s:%s, got %s:%s",
-			dstAddr.String(), dstAddr.Network(), host.String(), host.Network())
 	}
 	if _, err := net.Listen("tcp", "0.0.0.0:80"); err == nil {
 		t.Fatal("Listen on mapped port without proxy should fail")
@@ -223,7 +238,10 @@ func TestMapTCPDummyListen(t *testing.T) {
 	if _, err := net.Listen("tcp", "0.0.0.0:81"); err != nil {
 		t.Fatal(err)
 	}
-	if host, err := pm.Map(srcAddr, dstIP, 81, false); err == nil {
+
+	b = binding.GetCopy()
+	b.HostPort = 81
+	if host, err := pm.mapPort(&b); err == nil {
 		t.Fatalf("Bound port shouldn't be allocated, but it was on: %v", host)
 	} else {
 		if !strings.Contains(err.Error(), "address already in use") {
@@ -233,34 +251,34 @@ func TestMapTCPDummyListen(t *testing.T) {
 }
 
 func TestMapUDPDummyListen(t *testing.T) {
-	pm := New("")
-	dstIP := net.ParseIP("0.0.0.0")
-	dstAddr := &net.UDPAddr{IP: dstIP, Port: 80}
-
-	// no-op for dummy
-	srcAddr := &net.UDPAddr{Port: 1080, IP: net.ParseIP("172.16.0.1")}
-
-	addrEqual := func(addr1, addr2 net.Addr) bool {
-		return (addr1.Network() == addr2.Network()) && (addr1.String() == addr2.String())
+	pm := New()
+	binding := types.PortBinding{
+		Proto:    types.UDP,
+		IP:       net.ParseIP("172.16.0.1"),
+		Port:     1080,
+		HostIP:   net.ParseIP("0.0.0.0"),
+		HostPort: 80,
 	}
 
-	if host, err := pm.Map(srcAddr, dstIP, 80, false); err != nil {
+	b := binding.GetCopy()
+	if _, err := pm.mapPort(&b); err != nil {
 		t.Fatalf("Failed to allocate port: %s", err)
-	} else if !addrEqual(dstAddr, host) {
-		t.Fatalf("Incorrect mapping result: expected %s:%s, got %s:%s",
-			dstAddr.String(), dstAddr.Network(), host.String(), host.Network())
 	}
-	if _, err := net.ListenUDP("udp", &net.UDPAddr{IP: dstIP, Port: 80}); err == nil {
+
+	if _, err := net.ListenUDP("udp", &net.UDPAddr{IP: binding.HostIP, Port: 80}); err == nil {
 		t.Fatal("Listen on mapped port without proxy should fail")
 	} else {
 		if !strings.Contains(err.Error(), "address already in use") {
 			t.Fatalf("Error should be about address already in use, got %v", err)
 		}
 	}
-	if _, err := net.ListenUDP("udp", &net.UDPAddr{IP: dstIP, Port: 81}); err != nil {
+	if _, err := net.ListenUDP("udp", &net.UDPAddr{IP: binding.HostIP, Port: 81}); err != nil {
 		t.Fatal(err)
 	}
-	if host, err := pm.Map(srcAddr, dstIP, 81, false); err == nil {
+
+	b = binding.GetCopy()
+	b.HostPort = 81
+	if host, err := pm.mapPort(&b); err == nil {
 		t.Fatalf("Bound port shouldn't be allocated, but it was on: %v", host)
 	} else {
 		if !strings.Contains(err.Error(), "address already in use") {

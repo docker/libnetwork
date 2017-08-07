@@ -76,7 +76,7 @@ func removePFRules(epid string) {
 	}
 }
 
-func (n *bridgeNetwork) allocatePorts(ep *bridgeEndpoint, bindIntf string, reqDefBindIP net.IP, ulPxyEnabled bool) ([]types.PortBinding, error) {
+func (n *bridgeNetwork) allocatePorts(ep *bridgeEndpoint, reqDefBindIP net.IP) ([]types.PortBinding, error) {
 	if ep.extConnConfig == nil || ep.extConnConfig.PortBindings == nil {
 		return nil, nil
 	}
@@ -86,99 +86,21 @@ func (n *bridgeNetwork) allocatePorts(ep *bridgeEndpoint, bindIntf string, reqDe
 		defHostIP = reqDefBindIP
 	}
 
-	bs, err := n.allocatePortsInternal(ep.extConnConfig.PortBindings, bindIntf, ep.addr.IP, defHostIP, ulPxyEnabled)
-	if err != nil {
-		return nil, err
+	bs := make([]types.PortBinding, 0, len(ep.extConnConfig.PortBindings))
+	for _, bnd := range ep.extConnConfig.PortBindings {
+		cp := bnd.GetCopy()
+		if len(cp.HostIP) == 0 {
+			cp.HostIP = defHostIP
+		}
+		if cp.HostPortEnd == 0 {
+			cp.HostPortEnd = cp.HostPort
+		}
+		cp.IP = ep.addr.IP
+		bs = append(bs, cp)
 	}
 
-	// Add PF rules for port bindings, if any
-	if len(bs) > 0 {
-		addPFRules(ep.id, bindIntf, bs)
-	}
-
+	err := n.portMapper.MapPorts(bs)
 	return bs, err
-}
-
-func (n *bridgeNetwork) allocatePortsInternal(bindings []types.PortBinding, bindIntf string, containerIP, defHostIP net.IP, ulPxyEnabled bool) ([]types.PortBinding, error) {
-	bs := make([]types.PortBinding, 0, len(bindings))
-	for _, c := range bindings {
-		b := c.GetCopy()
-		if err := n.allocatePort(&b, containerIP, defHostIP); err != nil {
-			// On allocation failure,release previously
-			// allocated ports. On cleanup error, just log
-			// a warning message
-			if cuErr := n.releasePortsInternal(bs); cuErr != nil {
-				logrus.Warnf("Upon allocation failure "+
-					"for %v, failed to clear previously "+
-					"allocated port bindings: %v", b, cuErr)
-			}
-			return nil, err
-		}
-		bs = append(bs, b)
-	}
-	return bs, nil
-}
-
-func (n *bridgeNetwork) allocatePort(bnd *types.PortBinding, containerIP, defHostIP net.IP) error {
-	var (
-		host net.Addr
-		err  error
-	)
-
-	// Store the container interface address in the operational binding
-	bnd.IP = containerIP
-
-	// Adjust the host address in the operational binding
-	if len(bnd.HostIP) == 0 {
-		bnd.HostIP = defHostIP
-	}
-
-	// Adjust HostPortEnd if this is not a range.
-	if bnd.HostPortEnd == 0 {
-		bnd.HostPortEnd = bnd.HostPort
-	}
-
-	// Construct the container side transport address
-	container, err := bnd.ContainerAddr()
-	if err != nil {
-		return err
-	}
-
-	// Try up to maxAllocatePortAttempts times to get a port that's
-	// not already allocated.
-	for i := 0; i < maxAllocatePortAttempts; i++ {
-		if host, err = n.portMapper.MapRange(container, bnd.HostIP,
-			int(bnd.HostPort), int(bnd.HostPortEnd), false); err == nil {
-			break
-		}
-		// There is no point in immediately retrying to map an
-		// explicitly chosen port.
-		if bnd.HostPort != 0 {
-			logrus.Warnf(
-				"Failed to allocate and map port %d-%d: %s",
-				bnd.HostPort, bnd.HostPortEnd, err)
-			break
-		}
-		logrus.Warnf("Failed to allocate and map port: %s, retry: %d",
-			err, i+1)
-	}
-	if err != nil {
-		return err
-	}
-
-	// Save the host port (regardless it was or not specified in the
-	// binding)
-	switch netAddr := host.(type) {
-	case *net.TCPAddr:
-		bnd.HostPort = uint16(host.(*net.TCPAddr).Port)
-		return nil
-	case *net.UDPAddr:
-		bnd.HostPort = uint16(host.(*net.UDPAddr).Port)
-		return nil
-	default:
-		// For completeness
-		return ErrUnsupportedAddressType(fmt.Sprintf("%T", netAddr))
-	}
 }
 
 func (n *bridgeNetwork) releasePorts(ep *bridgeEndpoint) error {
