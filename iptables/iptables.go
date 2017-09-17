@@ -235,7 +235,7 @@ func RemoveExistingChain(name string, table Table) error {
 }
 
 // Forward adds forwarding rule to 'filter' table and corresponding nat rule to 'nat' table.
-func (c *ChainInfo) Forward(action Action, ip net.IP, port int, proto, destAddr string, destPort int, bridgeName string) error {
+func (c *ChainInfo) Forward(action Action, maskedAddrv4 string, ip net.IP, port int, proto, destAddr string, destPort int, bridgeName string) error {
 	daddr := ip.String()
 	if ip.IsUnspecified() {
 		// iptables interprets "0.0.0.0" as "0.0.0.0/32", whereas we
@@ -271,10 +271,12 @@ func (c *ChainInfo) Forward(action Action, ip net.IP, port int, proto, destAddr 
 
 	args = []string{
 		"-p", proto,
-		"-s", destAddr,
 		"-d", destAddr,
 		"--dport", strconv.Itoa(destPort),
 		"-j", "MASQUERADE",
+	}
+	if maskedAddrv4 != "" {
+		args = append(args, "!", "-s", maskedAddrv4)
 	}
 	if err := ProgramRule(Nat, "POSTROUTING", action, args); err != nil {
 		return err
