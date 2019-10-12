@@ -166,6 +166,14 @@ func (p *PortAllocator) ReleasePort(ip net.IP, proto string, port int) error {
 	if !ok {
 		return nil
 	}
+	for _, pr := range protomap[proto].portRanges {
+		if port >= pr.begin && port <= pr.last {
+			pr.last = port - 1
+			if pr.last < pr.begin {
+				pr.last = pr.end
+			}
+		}
+	}
 	delete(protomap[proto].p, port)
 	return nil
 }

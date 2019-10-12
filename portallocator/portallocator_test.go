@@ -321,3 +321,30 @@ func TestNoDuplicateBPR(t *testing.T) {
 		t.Fatalf("Acquire(0) allocated the same port twice: %d", port)
 	}
 }
+
+func TestReusePortAllocation(t *testing.T) {
+	p := Get()
+	defer resetPortAllocator()
+
+	port1, err := p.RequestPortInRange(defaultIP, "tcp", 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := p.RequestPortInRange(defaultIP, "tcp", 0, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := p.ReleasePort(defaultIP, "tcp", port1); err != nil {
+		t.Fatal(err)
+	}
+
+	port2, err := p.RequestPortInRange(defaultIP, "tcp", 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if port2 != port1 {
+		t.Fatalf("Failed to reuse released port. Expected port: %d, got %d", port1, port2)
+	}
+}
