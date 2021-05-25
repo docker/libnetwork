@@ -208,7 +208,6 @@ EOF
 	   -v $(pwd)/:/go/src/github.com/docker/libnetwork \
 	   -v /tmp:/tmp \
 	   -v $(pwd)/${TMPC_ROOT}:/scratch \
-	   -v /usr/local/bin/runc:/usr/local/bin/runc \
 	   -w /go/src/github.com/docker/libnetwork \
 	   mrjana/golang ./bin/dnet -d -D ${hopt} -c ${tomlfile}
 
