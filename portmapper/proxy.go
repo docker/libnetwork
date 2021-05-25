@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"syscall"
 	"time"
 
 	"github.com/ishidawataru/sctp"
@@ -75,10 +76,26 @@ func (p *proxyCommand) Start() error {
 
 func (p *proxyCommand) Stop() error {
 	if p.cmd.Process != nil {
-		if err := p.cmd.Process.Signal(os.Interrupt); err != nil {
+		if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
 			return err
 		}
-		return p.cmd.Wait()
+
+		waitChan := make(chan error)
+		go func() {
+			waitChan <- p.cmd.Wait()
+		}()
+
+		t := time.NewTimer(15 * time.Second)
+		defer t.Stop()
+
+		select {
+		case result := <-waitChan:
+			return result
+		case <-t.C:
+			if err := p.cmd.Process.Signal(os.Kill); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
