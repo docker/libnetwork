@@ -1,9 +1,11 @@
 package libnetwork
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"net"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +34,15 @@ type Resolver interface {
 	SetExtServers([]extDNSEntry)
 	// ResolverOptions returns resolv.conf options that should be set
 	ResolverOptions() []string
+	// SetIPSortOrderDefault sets the order of IP addresses in hostname
+	// lookup, if not set specifically by SetIPSortOrderSpecific
+	SetIPSortOrderDefault(int)
+	// SetIPSortOrderSpecific sets the order of IP addresses in hostname
+	// lookup for the specified hostname, which overrides the default order
+	SetIPSortOrderSpecific(string, int)
+	// ClearIPSortOrderSpecific sets the order of IP addresses in hostname
+	// lookup for the specified hostname to be the default order
+	ClearIPSortOrderSpecific(string)
 }
 
 // DNSBackend represents a backend DNS resolver used for DNS name
@@ -92,6 +103,8 @@ type resolver struct {
 	proxyDNS      bool
 	resolverKey   string
 	startCh       chan struct{}
+	ipSortDefault int
+	ipSortMap     map[string]int
 }
 
 func init() {
@@ -107,6 +120,8 @@ func NewResolver(address string, proxyDNS bool, resolverKey string, backend DNSB
 		resolverKey:   resolverKey,
 		err:           fmt.Errorf("setup not done yet"),
 		startCh:       make(chan struct{}, 1),
+		ipSortDefault: types.RANDOM,
+		ipSortMap:     nil,
 	}
 }
 
@@ -208,12 +223,50 @@ func setCommonFlags(msg *dns.Msg) {
 	msg.RecursionAvailable = true
 }
 
-func shuffleAddr(addr []net.IP) []net.IP {
+func (r *resolver) SetIPSortOrderDefault(ipSortMethod int) {
+	r.ipSortDefault = ipSortMethod
+	return
+}
+
+func (r *resolver) SetIPSortOrderSpecific(hostname string, ipSortMethod int) {
+	if hostname == "" {
+		return
+	}
+	if r.ipSortMap == nil {
+		r.ipSortMap = make(map[string]int)
+	}
+	r.ipSortMap[hostname] = ipSortMethod
+	return
+}
+
+func (r *resolver) ClearIPSortOrderSpecific(hostname string) {
+	if r.ipSortMap == nil {
+		return
+	}
+	delete(r.ipSortMap, hostname)
+	return
+}
+
+func sortAddrRandom(addr []net.IP) {
 	for i := len(addr) - 1; i > 0; i-- {
 		r := rand.Intn(i + 1)
 		addr[i], addr[r] = addr[r], addr[i]
 	}
-	return addr
+	return
+}
+
+func sortAddrAscending(addr []net.IP) {
+	sort.Slice(addr, func(i, j int) bool {
+		return bytes.Compare(addr[i], addr[j]) == -1
+	})
+	return
+}
+
+func sortAddrDescending(addr []net.IP) {
+	sort.Slice(addr, func(i, j int) bool {
+		return bytes.Compare(addr[i], addr[j]) == 1
+	})
+	return
 }
 
 func createRespMsg(query *dns.Msg) *dns.Msg {
@@ -259,7 +312,18 @@ func (r *resolver) handleIPQuery(name string, query *dns.Msg, ipType int) (*dns.
 
 	resp := createRespMsg(query)
 	if len(addr) > 1 {
-		addr = shuffleAddr(addr)
+		ipSortMethod, hostnameFound := r.ipSortMap[name]
+		if hostnameFound == false {
+			ipSortMethod = r.ipSortDefault
+		}
+		switch ipSortMethod {
+		case types.RANDOM:
+			sortAddrRandom(addr)
+		case types.ASCENDING:
+			sortAddrAscending(addr)
+		case types.DESCENDING:
+			sortAddrDescending(addr)
+		}
 	}
 	if ipType == types.IPv4 {
 		for _, ip := range addr {

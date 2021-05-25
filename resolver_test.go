@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/libnetwork/types"
 	"github.com/miekg/dns"
 )
 
@@ -148,11 +149,96 @@ func TestDNSIPQuery(t *testing.T) {
 		w.ClearResponse()
 	}
 
-	// test MX query with name1 results in Success response with 0 answer records
+	// add more service records which are used to resolve names. These are to test default sort order of multiple IPs
+	n.(*network).addSvcRecords("ep1", "name1", "svc1", net.ParseIP("192.168.0.3"), net.IP{}, true, "test")
+	n.(*network).addSvcRecords("ep1", "name1", "svc1", net.ParseIP("192.168.0.2"), net.IP{}, true, "test")
+	n.(*network).addSvcRecords("ep1", "name1", "svc1", net.ParseIP("193.168.0.1"), net.IP{}, true, "test")
+	n.(*network).addSvcRecords("ep1", "name1", "svc1", net.ParseIP("191.168.0.1"), net.IP{}, true, "test")
+
+	// test name1 resolves to multiple IPs with default A type query
+	// Also make sure the order of IPs matches the default sort order specified.
+	// No test for RANDOM and NONE because final output order is unknown
+	sortOrders := []int{types.NONE, types.ASCENDING, types.DESCENDING}
+	for _, sortOrder := range sortOrders {
+		r.(*resolver).SetIPSortOrderDefault(sortOrder)
+		q := new(dns.Msg)
+		q.SetQuestion(names[0], dns.TypeA)
+		r.(*resolver).ServeDNS(w, q)
+		resp := w.GetResponse()
+		checkNonNullResponse(t, resp)
+		t.Log("Response: ", resp.String())
+		checkDNSResponseCode(t, resp, dns.RcodeSuccess)
+		checkDNSAnswersCount(t, resp, 5)
+		checkDNSRRType(t, resp.Answer[0].Header().Rrtype, dns.TypeA)
+		checkDNSRRType(t, resp.Answer[1].Header().Rrtype, dns.TypeA)
+		checkDNSRRType(t, resp.Answer[2].Header().Rrtype, dns.TypeA)
+		checkDNSRRType(t, resp.Answer[3].Header().Rrtype, dns.TypeA)
+		checkDNSRRType(t, resp.Answer[4].Header().Rrtype, dns.TypeA)
+		ans0, ok0 := resp.Answer[0].(*dns.A)
+		ans1, ok1 := resp.Answer[1].(*dns.A)
+		ans2, ok2 := resp.Answer[2].(*dns.A)
+		ans3, ok3 := resp.Answer[3].(*dns.A)
+		ans4, ok4 := resp.Answer[4].(*dns.A)
+		if !ok0 || !ok1 || !ok2 || !ok3 || !ok4 {
+			t.Fatal("Answer of type A not found")
+		} else if sortOrder == types.ASCENDING {
+			if !bytes.Equal(ans0.A, net.ParseIP("191.168.0.1")) ||
+				!bytes.Equal(ans1.A, net.ParseIP("192.168.0.1")) ||
+				!bytes.Equal(ans2.A, net.ParseIP("192.168.0.2")) ||
+				!bytes.Equal(ans3.A, net.ParseIP("192.168.0.3")) ||
+				!bytes.Equal(ans4.A, net.ParseIP("193.168.0.1")) {
+				t.Fatalf("IP response in Answers are not sorted ascending: %v %v %v %v %v", ans0.A, ans1.A, ans2.A, ans3.A, ans4.A)
+			}
+		} else if sortOrder == types.DESCENDING {
+			if !bytes.Equal(ans0.A, net.ParseIP("193.168.0.1")) ||
+				!bytes.Equal(ans1.A, net.ParseIP("192.168.0.3")) ||
+				!bytes.Equal(ans2.A, net.ParseIP("192.168.0.2")) ||
+				!bytes.Equal(ans3.A, net.ParseIP("192.168.0.1")) ||
+				!bytes.Equal(ans4.A, net.ParseIP("191.168.0.1")) {
+				t.Fatalf("IP response in Answers are not sorted descending: %v %v %v %v %v", ans0.A, ans1.A, ans2.A, ans3.A, ans4.A)
+			}
+		}
+		w.ClearResponse()
+	}
+
+	// add more service records which are used to resolve names. These are to test sort order of multiple IPs
+	// for a hostname which has its own non-default sort order specified
+	n.(*network).addSvcRecords("ep1", "name2", "svc1", net.ParseIP("192.168.0.1"), net.IP{}, true, "test")
+	n.(*network).addSvcRecords("ep1", "name2", "svc1", net.ParseIP("192.168.0.3"), net.IP{}, true, "test")
+	n.(*network).addSvcRecords("ep1", "name2", "svc1", net.ParseIP("192.168.0.2"), net.IP{}, true, "test")
+	r.(*resolver).SetIPSortOrderDefault(types.DESCENDING)
+	r.(*resolver).SetIPSortOrderSpecific("name2", types.ASCENDING)
+
+	// test name2 resolves to multiple IPs with default A type query
+	// Also make sure the order of IPs matches the specific sort order specified.
 	q := new(dns.Msg)
-	q.SetQuestion("name1", dns.TypeMX)
+	q.SetQuestion("name2", dns.TypeA)
 	r.(*resolver).ServeDNS(w, q)
 	resp := w.GetResponse()
+	checkNonNullResponse(t, resp)
+	t.Log("Response: ", resp.String())
+	checkDNSResponseCode(t, resp, dns.RcodeSuccess)
+	checkDNSAnswersCount(t, resp, 3)
+	checkDNSRRType(t, resp.Answer[0].Header().Rrtype, dns.TypeA)
+	checkDNSRRType(t, resp.Answer[1].Header().Rrtype, dns.TypeA)
+	checkDNSRRType(t, resp.Answer[2].Header().Rrtype, dns.TypeA)
+	ans0, ok0 := resp.Answer[0].(*dns.A)
+	ans1, ok1 := resp.Answer[1].(*dns.A)
+	ans2, ok2 := resp.Answer[2].(*dns.A)
+	if !ok0 || !ok1 || !ok2 {
+		t.Fatal("Answer of type A not found")
+	} else if !bytes.Equal(ans0.A, net.ParseIP("192.168.0.1")) ||
+		!bytes.Equal(ans1.A, net.ParseIP("192.168.0.2")) ||
+		!bytes.Equal(ans2.A, net.ParseIP("192.168.0.3")) {
+		t.Fatalf("IP response in Answers are not sorted ascending: %v %v %v", ans0.A, ans1.A, ans2.A)
+	}
+	w.ClearResponse()
+
+	// test MX query with name1 results in Success response with 0 answer records
+	q = new(dns.Msg)
+	q.SetQuestion("name1", dns.TypeMX)
+	r.(*resolver).ServeDNS(w, q)
+	resp = w.GetResponse()
 	checkNonNullResponse(t, resp)
 	t.Log("Response: ", resp.String())
 	checkDNSResponseCode(t, resp, dns.RcodeSuccess)

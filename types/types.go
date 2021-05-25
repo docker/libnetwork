@@ -18,6 +18,14 @@ const (
 	IPv6
 )
 
+// constants for the method used to sord IP addresses
+const (
+	NONE = iota
+	ASCENDING
+	DESCENDING
+	RANDOM
+)
+
 // EncryptionKey is the libnetwork representation of the key distributed by the lead
 // manager.
 type EncryptionKey struct {
