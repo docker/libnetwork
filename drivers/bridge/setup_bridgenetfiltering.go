@@ -63,14 +63,20 @@ func checkBridgeNetFiltering(config *networkConfiguration, i *bridgeInterface) e
 		enabled, err := isPacketForwardingEnabled(ipVer, iface)
 		if err != nil {
 			logrus.Warnf("failed to check %s forwarding: %v", ipVerName, err)
-		} else if enabled {
-			enabled, err := getKernelBoolParam(getBridgeNFKernelParam(ipVer))
-			if err != nil || enabled {
+		}
+
+		if !enabled {
+			err := setKernelBoolParam(getForwardingKernelParam(ipVer, iface), true)
+			if err != nil {
 				return err
 			}
-			return setKernelBoolParam(getBridgeNFKernelParam(ipVer), true)
 		}
-		return nil
+
+		enabled, err = getKernelBoolParam(getBridgeNFKernelParam(ipVer))
+		if err != nil || enabled {
+			return err
+		}
+		return setKernelBoolParam(getBridgeNFKernelParam(ipVer), true)
 	}
 
 	switch ipVer {
@@ -93,13 +99,14 @@ func checkBridgeNetFiltering(config *networkConfiguration, i *bridgeInterface) e
 // `iface` is empty, `default` will be assumed, which represents default value
 // for new interfaces.
 func getForwardingKernelParam(ipVer ipVersion, iface string) string {
+	if iface == "" {
+		iface = "default"
+	}
+
 	switch ipVer {
 	case ipv4:
-		return "/proc/sys/net/ipv4/ip_forward"
+		return fmt.Sprintf("/proc/sys/net/ipv4/conf/%s/forwarding", iface)
 	case ipv6:
-		if iface == "" {
-			iface = "default"
-		}
 		return fmt.Sprintf("/proc/sys/net/ipv6/conf/%s/forwarding", iface)
 	default:
 		return ""
