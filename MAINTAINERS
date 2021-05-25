@@ -11,11 +11,16 @@
 [Org]
 	[Org."Core maintainers"]
 		people = [
+			"akihirosuda",
 			"arkodg",
+			"cpuguy83",
 			"euanh",
 			"fcrisciani",
 			"mavenugo",
 			"selansen",
+			"thajeztah",
+			"tianon",
+			"tonistiigi",
 		]
 
 [people]
@@ -26,10 +31,20 @@
 
 	# ADD YOURSELF HERE IN ALPHABETICAL ORDER
 
+	[people.akihirosuda]
+	Name = "Akihiro Suda"
+	Email = "akihiro.suda.cz@hco.ntt.co.jp"
+	GitHub = "AkihiroSuda"
+
 	[people.arkodg]
 	Name = "Arko Dasgupta"
 	Email = "arko.dasgupta@docker.com"
 	GitHub = "arkodg"
+
+	[people.cpuguy83]
+	Name = "Brian Goff"
+	Email = "cpuguy83@gmail.com"
+	GitHub = "cpuguy83"
 
 	[people.euanh]
 	Name = "Euan Harris"
@@ -50,3 +65,18 @@
 	Name = "Elangovan Sivanandam"
 	Email = "elango.siva@docker.com"
 	GitHub = "selansen"
+
+	[people.thajeztah]
+	Name = "Sebastiaan van Stijn"
+	Email = "github@gone.nl"
+	GitHub = "thaJeztah"
+
+	[people.tianon]
+	Name = "Tianon Gravi"
+	Email = "admwiggin@gmail.com"
+	GitHub = "tianon"
+
+	[people.tonistiigi]
+	Name = "Tõnis Tiigi"
+	Email = "tonis@docker.com"
+	GitHub = "tonistiigi"
