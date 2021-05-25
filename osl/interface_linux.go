@@ -3,6 +3,7 @@ package osl
 import (
 	"fmt"
 	"net"
+	"os"
 	"regexp"
 	"sync"
 	"syscall"
@@ -386,7 +387,14 @@ func setInterfaceIPv6(nlh *netlink.Handle, iface netlink.Link, i *nwIface) error
 	if err := setIPv6(i.ns.path, i.DstName(), true); err != nil {
 		return fmt.Errorf("failed to enable ipv6: %v", err)
 	}
-	ipAddr := &netlink.Addr{IPNet: i.AddressIPv6(), Label: "", Flags: syscall.IFA_F_NODAD}
+
+	flag := syscall.IFA_F_NODAD
+	// If CONFIG_IPV6_OPTIMISTIC_DAD configured in the kernel, use that instead of
+	// completely disabling DAD
+	if _, err := os.Stat("/proc/sys/net/ipv6/conf/all/optimistic_dad"); err == nil {
+		flag = syscall.IFA_F_OPTIMISTIC
+	}
+	ipAddr := &netlink.Addr{IPNet: i.AddressIPv6(), Label: "", Flags: flag}
 	return nlh.AddrAdd(iface, ipAddr)
 }
 
