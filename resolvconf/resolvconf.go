@@ -254,8 +254,20 @@ func GetOptions(resolvConf []byte) []string {
 // Build writes a configuration file to path containing a "nameserver" entry
 // for every element in dns, a "search" entry for every element in
 // dnsSearch, and an "options" entry for every element in dnsOptions.
-func Build(path string, dns, dnsSearch, dnsOptions []string) (*File, error) {
+func Build(path string, dns, dnsSearch, dnsOptions []string, comments string) (*File, error) {
 	content := bytes.NewBuffer(nil)
+	if len(comments) > 0 {
+		commentLine := strings.Split(comments, "\n")
+		for i := range commentLine {	
+			if _, err := content.WriteString("# " + commentLine[i] + "\n"); err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		if _, err := content.WriteString("# This file was created by Docker" + dns + "\n"); err != nil {
+			return nil, err
+		}
+	}
 	if len(dnsSearch) > 0 {
 		if searchString := strings.Join(dnsSearch, " "); strings.Trim(searchString, " ") != "." {
 			if _, err := content.WriteString("search " + searchString + "\n"); err != nil {
