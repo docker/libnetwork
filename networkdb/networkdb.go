@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armon/go-radix"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/go-events"
 	"github.com/docker/libnetwork/types"
+	radix "github.com/hashicorp/go-immutable-radix"
 	"github.com/hashicorp/memberlist"
 	"github.com/hashicorp/serf/serf"
 	"github.com/sirupsen/logrus"
@@ -338,7 +338,7 @@ func (nDB *NetworkDB) GetEntry(tname, nid, key string) ([]byte, error) {
 }
 
 func (nDB *NetworkDB) getEntry(tname, nid, key string) (*entry, error) {
-	e, ok := nDB.indexes[byTable].Get(fmt.Sprintf("/%s/%s/%s", tname, nid, key))
+	e, ok := nDB.indexes[byTable].Get([]byte("/" + tname + "/" + nid + "/" + key))
 	if !ok {
 		return nil, types.NotFoundErrorf("could not get entry in table %s with network id %s and key %s", tname, nid, key)
 	}
@@ -412,12 +412,13 @@ type TableElem struct {
 // returns a map of keys and values
 func (nDB *NetworkDB) GetTableByNetwork(tname, nid string) map[string]*TableElem {
 	entries := make(map[string]*TableElem)
-	nDB.indexes[byTable].WalkPrefix(fmt.Sprintf("/%s/%s", tname, nid), func(k string, v interface{}) bool {
+	nDB.indexes[byTable].Root().WalkPrefix([]byte("/"+tname+"/"+nid), func(k []byte, v interface{}) bool {
 		entry := v.(*entry)
 		if entry.deleting {
 			return false
 		}
-		key := k[strings.LastIndex(k, "/")+1:]
+		key := string(k)
+		key = key[strings.LastIndex(key, "/")+1:]
 		entries[key] = &TableElem{Value: entry.value, owner: entry.node}
 		return false
 	})
@@ -488,10 +489,10 @@ func (nDB *NetworkDB) deleteNodeNetworkEntries(nid, node string) {
 	// Indicates if the delete is triggered for the local node
 	isNodeLocal := node == nDB.config.NodeID
 
-	nDB.indexes[byNetwork].WalkPrefix(fmt.Sprintf("/%s", nid),
-		func(path string, v interface{}) bool {
+	nDB.indexes[byNetwork].Root().WalkPrefix([]byte("/"+nid),
+		func(path []byte, v interface{}) bool {
 			oldEntry := v.(*entry)
-			params := strings.Split(path[1:], "/")
+			params := strings.Split(string(path)[1:], "/")
 			nid := params[0]
 			tname := params[1]
 			key := params[2]
@@ -543,13 +544,13 @@ func (nDB *NetworkDB) deleteNodeNetworkEntries(nid, node string) {
 }
 
 func (nDB *NetworkDB) deleteNodeTableEntries(node string) {
-	nDB.indexes[byTable].Walk(func(path string, v interface{}) bool {
+	nDB.indexes[byTable].Root().Walk(func(path []byte, v interface{}) bool {
 		oldEntry := v.(*entry)
 		if oldEntry.node != node {
 			return false
 		}
 
-		params := strings.Split(path[1:], "/")
+		params := strings.Split(string(path)[1:], "/")
 		tname := params[0]
 		nid := params[1]
 		key := params[2]
@@ -569,8 +570,8 @@ func (nDB *NetworkDB) deleteNodeTableEntries(node string) {
 func (nDB *NetworkDB) WalkTable(tname string, fn func(string, string, []byte, bool) bool) error {
 	nDB.RLock()
 	values := make(map[string]interface{})
-	nDB.indexes[byTable].WalkPrefix(fmt.Sprintf("/%s", tname), func(path string, v interface{}) bool {
-		values[path] = v
+	nDB.indexes[byTable].Root().WalkPrefix([]byte("/"+tname), func(path []byte, v interface{}) bool {
+		values[string(path)] = v
 		return false
 	})
 	nDB.RUnlock()
@@ -741,8 +742,12 @@ func (nDB *NetworkDB) updateLocalNetworkTime() {
 // createOrUpdateEntry this function handles the creation or update of entries into the local
 // tree store. It is also used to keep in sync the entries number of the network (all tables are aggregated)
 func (nDB *NetworkDB) createOrUpdateEntry(nid, tname, key string, entry interface{}) (bool, bool) {
-	_, okTable := nDB.indexes[byTable].Insert(fmt.Sprintf("/%s/%s/%s", tname, nid, key), entry)
-	_, okNetwork := nDB.indexes[byNetwork].Insert(fmt.Sprintf("/%s/%s/%s", nid, tname, key), entry)
+	nDB.Lock()
+	defer nDB.Unlock()
+
+	var okTable, okNetwork bool
+	nDB.indexes[byTable], _, okTable = nDB.indexes[byTable].Insert([]byte("/"+tname+"/"+nid+"/"+key), entry)
+	nDB.indexes[byNetwork], _, okNetwork = nDB.indexes[byNetwork].Insert([]byte("/"+nid+"/"+tname+"/"+key), entry)
 	if !okNetwork {
 		// Add only if it is an insert not an update
 		n, ok := nDB.networks[nDB.config.NodeID][nid]
@@ -756,8 +761,12 @@ func (nDB *NetworkDB) createOrUpdateEntry(nid, tname, key string, entry interfac
 // deleteEntry this function handles the deletion of entries into the local tree store.
 // It is also used to keep in sync the entries number of the network (all tables are aggregated)
 func (nDB *NetworkDB) deleteEntry(nid, tname, key string) (bool, bool) {
-	_, okTable := nDB.indexes[byTable].Delete(fmt.Sprintf("/%s/%s/%s", tname, nid, key))
-	_, okNetwork := nDB.indexes[byNetwork].Delete(fmt.Sprintf("/%s/%s/%s", nid, tname, key))
+	nDB.Lock()
+	defer nDB.Unlock()
+
+	var okTable, okNetwork bool
+	nDB.indexes[byTable], _, okTable = nDB.indexes[byTable].Delete([]byte("/" + tname + "/" + nid + "/" + key))
+	nDB.indexes[byNetwork], _, okNetwork = nDB.indexes[byNetwork].Delete([]byte("/" + nid + "/" + tname + "/" + key))
 	if okNetwork {
 		// Remove only if the delete is successful
 		n, ok := nDB.networks[nDB.config.NodeID][nid]
