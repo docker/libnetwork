@@ -10,6 +10,7 @@ import (
 	"github.com/docker/libnetwork/discoverapi"
 	"github.com/docker/libnetwork/driverapi"
 	"github.com/docker/libnetwork/drivers/remote/api"
+	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -252,6 +253,9 @@ func (d *driver) EndpointOperInfo(nid, eid string) (map[string]interface{}, erro
 	var res api.EndpointInfoResponse
 	if err := d.call("EndpointOperInfo", info, &res); err != nil {
 		return nil, err
+	}
+	if val, ok := res.Value["MacAddress"]; ok {
+		res.Value[netlabel.MacAddress], _ = net.ParseMAC(val.(string))
 	}
 	return res.Value, nil
 }
