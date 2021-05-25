@@ -115,7 +115,7 @@ func splitNetwork(size int, base *net.IPNet) []*net.IPNet {
 
 	for i := 0; i < n; i++ {
 		ip := copyIP(base.IP)
-		addIntToIP(ip, uint(i<<s))
+		addIntToIP(ip, uint(i), s)
 		list = append(list, &net.IPNet{IP: ip, Mask: mask})
 	}
 	return list
@@ -127,9 +127,14 @@ func copyIP(from net.IP) net.IP {
 	return ip
 }
 
-func addIntToIP(array net.IP, ordinal uint) {
-	for i := len(array) - 1; i >= 0; i-- {
-		array[i] |= (byte)(ordinal & 0xff)
-		ordinal >>= 8
+func addIntToIP(array net.IP, bits, shift uint) {
+	alignment := shift % 8
+	alignedBits := bits << alignment
+	alignedShift := shift - alignment
+
+	offset := uint(len(array))*8 - 8
+	for i := 0; i < len(array); i++ {
+		array[i] |= byte(alignedBits >> (offset - alignedShift))
+		offset -= 8
 	}
 }

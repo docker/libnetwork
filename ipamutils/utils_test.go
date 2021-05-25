@@ -116,3 +116,22 @@ func TestInitAddressPools(t *testing.T) {
 	assert.Check(t, is.Equal(PredefinedLocalScopeDefaultNetworks[383].String(), "172.90.127.0/24"))
 	assert.Check(t, is.Equal(PredefinedLocalScopeDefaultNetworks[511].String(), "172.90.255.0/24"))
 }
+
+func TestInitAddressPoolsIPv6(t *testing.T) {
+	// Check high-bit byte-misaligned ranges and a common byte-aligned subnet length
+	err := ConfigLocalScopeDefaultNetworks([]*NetworkToSplit{
+		{"fc00::/7", 13},
+		{"2000:db8:0:100::/56", 64}})
+	assert.NilError(t, err)
+
+	// Check for Random IPAddresses in PredefinedLocalScopeDefaultNetworks  ex: first , last and middle
+	assert.Check(t, is.Len(PredefinedLocalScopeDefaultNetworks, 320), "Failed to find PredefinedLocalScopeDefaultNetworks")
+	assert.Check(t, is.Equal(PredefinedLocalScopeDefaultNetworks[0].String(), "fc00::/13"))
+	assert.Check(t, is.Equal(PredefinedLocalScopeDefaultNetworks[1].String(), "fc08::/13"))
+	assert.Check(t, is.Equal(PredefinedLocalScopeDefaultNetworks[16].String(), "fc80::/13"))
+	assert.Check(t, is.Equal(PredefinedLocalScopeDefaultNetworks[31].String(), "fcf8::/13"))
+	assert.Check(t, is.Equal(PredefinedLocalScopeDefaultNetworks[63].String(), "fdf8::/13"))
+	assert.Check(t, is.Equal(PredefinedLocalScopeDefaultNetworks[64].String(), "2000:db8:0:100::/64"))
+	assert.Check(t, is.Equal(PredefinedLocalScopeDefaultNetworks[168].String(), "2000:db8:0:168::/64"))
+	assert.Check(t, is.Equal(PredefinedLocalScopeDefaultNetworks[319].String(), "2000:db8:0:1ff::/64"))
+}
