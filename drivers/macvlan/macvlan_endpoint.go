@@ -40,6 +40,7 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 			return err
 		}
 	}
+
 	// disallow portmapping -p
 	if opt, ok := epOptions[netlabel.PortMap]; ok {
 		if _, ok := opt.([]types.PortBinding); ok {
@@ -53,6 +54,18 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 		if _, ok := opt.([]types.TransportPort); ok {
 			if len(opt.([]types.TransportPort)) > 0 {
 				logrus.Warnf("%s driver does not support port exposures", macvlanType)
+			}
+		}
+	}
+
+	// Setup the runtime to default to namespace, override if specified
+	ep.runtime = "namespace"
+	if opt, ok := epOptions["runtime"]; ok {
+		if runtime, ok := opt.(string); ok {
+			if runtime != "namespace" && runtime != "vm" {
+				logrus.Warnf("driver does not support [%s] runtime", runtime)
+			} else {
+				ep.runtime = runtime
 			}
 		}
 	}

@@ -28,7 +28,7 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 		return fmt.Errorf("error generating an interface name: %s", err)
 	}
 	// create the netlink macvlan interface
-	vethName, err := createMacVlan(containerIfName, n.config.Parent, n.config.MacvlanMode)
+	vethName, err := createMacVlan(containerIfName, n.config.Parent, n.config.MacvlanMode, endpoint.runtime)
 	if err != nil {
 		return err
 	}

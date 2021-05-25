@@ -14,8 +14,8 @@ const (
 	dummyPrefix = "dm-" // macvlan prefix for dummy parent interface
 )
 
-// Create the macvlan slave specifying the source name
-func createMacVlan(containerIfName, parent, macvlanMode string) (string, error) {
+// Create the macvlan slave specifying the source name and the runtime type
+func createMacVlan(containerIfName, parent, macvlanMode, runtime string) (string, error) {
 	// Set the macvlan mode. Default is bridge mode
 	mode, err := setMacVlanMode(macvlanMode)
 	if err != nil {
@@ -30,20 +30,40 @@ func createMacVlan(containerIfName, parent, macvlanMode string) (string, error) 
 	if err != nil {
 		return "", fmt.Errorf("error occurred looking up the %s parent iface %s error: %s", macvlanType, parent, err)
 	}
-	// Create a macvlan link
-	macvlan := &netlink.Macvlan{
-		LinkAttrs: netlink.LinkAttrs{
-			Name:        containerIfName,
-			ParentIndex: parentLink.Attrs().Index,
-		},
-		Mode: mode,
-	}
-	if err := ns.NlHandle().LinkAdd(macvlan); err != nil {
-		// If a user creates a macvlan and ipvlan on same parent, only one slave iface can be active at a time.
-		return "", fmt.Errorf("failed to create the %s port: %v", macvlanType, err)
-	}
 
-	return macvlan.Attrs().Name, nil
+	if runtime == "vm" {
+		// Create a macvtap link
+		macvtap := &netlink.Macvtap{
+			Macvlan: netlink.Macvlan{
+				LinkAttrs: netlink.LinkAttrs{
+					Name:        containerIfName,
+					ParentIndex: parentLink.Attrs().Index,
+				},
+				Mode: mode,
+			},
+		}
+
+		if err := ns.NlHandle().LinkAdd(macvtap); err != nil {
+			return "", fmt.Errorf("failed to create the %s port: %v", macvlanType, err)
+		}
+
+		return macvtap.Attrs().Name, nil
+	} else {
+		// Create a macvlan link
+		macvlan := &netlink.Macvlan{
+			LinkAttrs: netlink.LinkAttrs{
+				Name:        containerIfName,
+				ParentIndex: parentLink.Attrs().Index,
+			},
+			Mode: mode,
+		}
+		if err := ns.NlHandle().LinkAdd(macvlan); err != nil {
+			// If a user creates a macvlan and ipvlan on same parent, only one slave iface can be active at a time.
+			return "", fmt.Errorf("failed to create the %s port: %v", macvlanType, err)
+		}
+
+		return macvlan.Attrs().Name, nil
+	}
 }
 
 // setMacVlanMode setter for one of the four macvlan port types

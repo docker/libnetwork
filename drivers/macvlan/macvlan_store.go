@@ -263,6 +263,7 @@ func (ep *endpoint) MarshalJSON() ([]byte, error) {
 	epMap["id"] = ep.id
 	epMap["nid"] = ep.nid
 	epMap["SrcName"] = ep.srcName
+	epMap["runtime"] = ep.runtime
 	if len(ep.mac) != 0 {
 		epMap["MacAddress"] = ep.mac.String()
 	}
@@ -303,6 +304,7 @@ func (ep *endpoint) UnmarshalJSON(b []byte) error {
 	ep.id = epMap["id"].(string)
 	ep.nid = epMap["nid"].(string)
 	ep.srcName = epMap["SrcName"].(string)
+	ep.runtime = epMap["runtime"].(string)
 
 	return nil
 }

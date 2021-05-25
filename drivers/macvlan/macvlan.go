@@ -46,6 +46,7 @@ type endpoint struct {
 	srcName  string
 	dbIndex  uint64
 	dbExists bool
+	runtime  string
 }
 
 type network struct {
