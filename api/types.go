@@ -28,6 +28,20 @@ type sandboxResource struct {
 	ContainerID string `json:"container_id"`
 }
 
+// endpointInfoResource is the body of the "get endpoint info" http response message
+type endpointInfoResource struct {
+	Interfaces []interfaceResource `json:"interfaces"`
+	Gateway4   string              `json:"gateway"`
+	Gateway6   string              `json:"gateway6"`
+	Sandbox    string              `json:"sandbox"`
+}
+
+type interfaceResource struct {
+	MAC   string `json:"mac"`
+	Addr  string `json:"addr"`
+	Addr6 string `json:"addr6"`
+}
+
 /***********
   Body types
   ************/
