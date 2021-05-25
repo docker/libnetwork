@@ -183,6 +183,7 @@ func (sb *sandbox) setExternalResolvers(content []byte, addrType int, checkLoopb
 
 func (sb *sandbox) setupDNS() error {
 	var newRC *resolvconf.File
+	var useExtLoopback bool
 
 	if sb.config.resolvConfPath == "" {
 		sb.config.resolvConfPath = defaultPrefix + "/" + sb.id + "/resolv.conf"
@@ -230,6 +231,19 @@ func (sb *sandbox) setupDNS() error {
 		logrus.Infof("/etc/resolv.conf does not exist")
 	}
 
+	// If dnsList has loopback ip
+	// when we should use container loopback to handle DNS queries
+	CheckUseExtLoopback := func() bool {
+		for _, n := range sb.config.dnsList {
+			if n == "127.0.0.1" {
+				return false
+			}
+		}
+		return true
+	}
+
+	useExtLoopback = CheckUseExtLoopback()
+
 	if len(sb.config.dnsList) > 0 || len(sb.config.dnsSearchList) > 0 || len(sb.config.dnsOptionsList) > 0 {
 		var (
 			err            error
@@ -252,14 +266,16 @@ func (sb *sandbox) setupDNS() error {
 		}
 		// After building the resolv.conf from the user config save the
 		// external resolvers in the sandbox. Note that --dns 127.0.0.x
-		// config refers to the loopback in the container namespace
-		sb.setExternalResolvers(newRC.Content, types.IPv4, false)
+		// config refers to the loopback in the container namespace ONLY IF
+		// 127.0.0.1 exists in dnsList
+
+		sb.setExternalResolvers(newRC.Content, types.IPv4, useExtLoopback)
 	} else {
 		// If the host resolv.conf file has 127.0.0.x container should
 		// use the host resolver for queries. This is supported by the
 		// docker embedded DNS server. Hence save the external resolvers
 		// before filtering it out.
-		sb.setExternalResolvers(currRC.Content, types.IPv4, true)
+		sb.setExternalResolvers(currRC.Content, types.IPv4, useExtLoopback)
 
 		// Replace any localhost/127.* (at this point we have no info about ipv6, pass it as true)
 		if newRC, err = resolvconf.FilterResolvDNS(currRC.Content, true); err != nil {
