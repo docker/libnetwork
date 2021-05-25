@@ -851,13 +851,13 @@ func TestLinkContainers(t *testing.T) {
 			regex := fmt.Sprintf("%s dpt:%d", pm.Proto.String(), pm.Port)
 			re := regexp.MustCompile(regex)
 			matches := re.FindAllString(string(out[:]), -1)
-			if len(matches) != 0 {
+			if len(matches) == 0 {
 				t.Fatalf("Error handling should rollback relevant IPTables rules  %s", string(out[:]))
 			}
 
 			regex = fmt.Sprintf("%s spt:%d", pm.Proto.String(), pm.Port)
 			matched, _ := regexp.MatchString(regex, string(out[:]))
-			if matched {
+			if !matched {
 				t.Fatalf("Error handling should rollback relevant IPTables rules  %s", string(out[:]))
 			}
 		}

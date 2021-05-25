@@ -1453,6 +1453,13 @@ func (d *driver) link(network *bridgeNetwork, endpoint *bridgeEndpoint, enable b
 	}
 
 	for _, c := range cc.ChildEndpoints {
+		defer func() {
+			if err != nil {
+				if l, ok := mapChildEndpoints[c]; ok {
+					l.Disable()
+				}
+			}
+		}()
 		var childEndpoint *bridgeEndpoint
 		childEndpoint, err = network.getEndpoint(c)
 		if err != nil {
@@ -1466,21 +1473,17 @@ func (d *driver) link(network *bridgeNetwork, endpoint *bridgeEndpoint, enable b
 			continue
 		}
 
-		l := newLink(endpoint.addr.IP.String(),
-			childEndpoint.addr.IP.String(),
-			childEndpoint.extConnConfig.ExposedPorts, network.config.BridgeName)
 		if enable {
+			l := newLink(endpoint.addr.IP.String(),
+				childEndpoint.addr.IP.String(),
+				childEndpoint.extConnConfig.ExposedPorts, network.config.BridgeName)
 			err = l.Enable()
 			if err != nil {
 				return err
 			}
-			defer func() {
-				if err != nil {
-					l.Disable()
-				}
-			}()
+			mapChildEndpoints[c] = l
 		} else {
-			l.Disable()
+			mapChildEndpoints[c].Disable()
 		}
 	}
 
