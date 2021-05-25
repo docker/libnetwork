@@ -21,14 +21,23 @@ func TestPoolRequest(t *testing.T) {
 		t.Fatalf("Unexpected pool id returned. Expected: %s. Got: %s", defaultPoolID, pid)
 	}
 
-	_, _, _, err = a.RequestPool("default", "", "", nil, false)
-	if err == nil {
-		t.Fatal("Unexpected success")
+	id, _, _, err := a.RequestPool("foo", "", "", nil, false)
+	if err != nil {
+		t.Fatal("Unexpected error")
+	}
+	if id != "foo/0.0.0.0/0" {
+		t.Fatal("Wrong id")
 	}
 
-	_, _, _, err = a.RequestPool(defaultAS, "192.168.0.0/16", "", nil, false)
-	if err == nil {
-		t.Fatal("Unexpected success")
+	id, p, _, err := a.RequestPool(defaultAS, "192.168.0.0/16", "", nil, false)
+	if err != nil {
+		t.Fatal("Unexpected error")
+	}
+	if id != defaultAS+"/192.168.0.0/16" {
+		t.Fatalf("Wrong id")
+	}
+	if p.String() != "192.168.0.0/16" {
+		t.Fatalf("Wrong pool")
 	}
 
 	_, _, _, err = a.RequestPool(defaultAS, "", "192.168.0.0/24", nil, false)
@@ -36,9 +45,20 @@ func TestPoolRequest(t *testing.T) {
 		t.Fatal("Unexpected success")
 	}
 
+	id, p, _, err = a.RequestPool(defaultAS, "192.168.0.0/16", "192.168.0.0/24", nil, false)
+	if err != nil {
+		t.Fatal("Unexpected error")
+	}
+	if id != defaultAS+"/192.168.0.0/16" {
+		t.Fatalf("Wrong id")
+	}
+	if p.String() != "192.168.0.0/16" {
+		t.Fatalf("Wrong pool")
+	}
+
 	_, _, _, err = a.RequestPool(defaultAS, "", "", nil, true)
-	if err == nil {
-		t.Fatal("Unexpected success")
+	if err != nil {
+		t.Fatal("Unexpected error")
 	}
 }
 

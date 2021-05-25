@@ -24,19 +24,24 @@ func (a *allocator) GetDefaultAddressSpaces() (string, string, error) {
 }
 
 func (a *allocator) RequestPool(addressSpace, pool, subPool string, options map[string]string, v6 bool) (string, *net.IPNet, map[string]string, error) {
-	if addressSpace != defaultAS {
-		return "", nil, nil, types.BadRequestErrorf("unknown address space: %s", addressSpace)
+	if addressSpace == "" {
+		addressSpace = defaultAS
 	}
+
+	if pool == "" && subPool != "" {
+		return "", nil, nil, fmt.Errorf("subpool requires a pool to be configured")
+	}
+
+	retPool := defaultPool
 	if pool != "" {
-		return "", nil, nil, types.BadRequestErrorf("null ipam driver does not handle specific address pool requests")
+		var err error
+		retPool, err = types.ParseCIDR(pool)
+		if err != nil {
+			return "", nil, nil, err
+		}
 	}
-	if subPool != "" {
-		return "", nil, nil, types.BadRequestErrorf("null ipam driver does not handle specific address subpool requests")
-	}
-	if v6 {
-		return "", nil, nil, types.BadRequestErrorf("null ipam driver does not handle IPv6 address pool pool requests")
-	}
-	return defaultPoolID, defaultPool, nil, nil
+	retPoolID := fmt.Sprintf("%s/%s", addressSpace, retPool.String())
+	return retPoolID, retPool, nil, nil
 }
 
 func (a *allocator) ReleasePool(poolID string) error {
