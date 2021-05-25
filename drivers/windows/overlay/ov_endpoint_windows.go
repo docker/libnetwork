@@ -155,7 +155,7 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 
 	hnsEndpoint.Policies = append(hnsEndpoint.Policies, paPolicy)
 
-	if osversion.Build() > 16236 {
+	if osversion.Build() >= osversion.RS3 {
 		natPolicy, err := json.Marshal(hcsshim.PaPolicy{
 			Type: "OutBoundNAT",
 		})
@@ -285,11 +285,11 @@ func (d *driver) EndpointOperInfo(nid, eid string) (map[string]interface{}, erro
 }
 
 func endpointRequest(method, path, request string) (*hcsshim.HNSEndpoint, error) {
-	if windowsBuild == 14393 {
+	if windowsBuild < osversion.RS5 {
 		endpointMu.Lock()
 	}
 	hnsresponse, err := hcsshim.HNSEndpointRequest(method, path, request)
-	if windowsBuild == 14393 {
+	if windowsBuild < osversion.RS5 {
 		endpointMu.Unlock()
 	}
 	return hnsresponse, err

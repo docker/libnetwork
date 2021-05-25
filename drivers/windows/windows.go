@@ -217,7 +217,7 @@ func (d *driver) parseNetworkOptions(id string, genericOptions map[string]string
 			}
 			config.VSID = uint(vsid)
 		case EnableOutboundNat:
-			if osversion.Build() <= 16236 {
+			if osversion.Build() < osversion.RS3 {
 				return nil, fmt.Errorf("Invalid network option. OutboundNat is not supported on this OS version")
 			}
 			b, err := strconv.ParseBool(value)

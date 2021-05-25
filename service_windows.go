@@ -27,7 +27,7 @@ func (n *network) addLBBackend(ip net.IP, lb *loadBalancer) {
 	vip := lb.vip
 	ingressPorts := lb.service.ingressPorts
 
-	if osversion.Build() > 16236 {
+	if osversion.Build() >= osversion.RS3 {
 		lb.Lock()
 		defer lb.Unlock()
 		//find the load balancer IP for the network.
@@ -128,7 +128,7 @@ func (n *network) rmLBBackend(ip net.IP, lb *loadBalancer, rmService bool, fullR
 		return
 	}
 
-	if osversion.Build() > 16236 {
+	if osversion.Build() >= osversion.RS3 {
 		if numEnabledBackends(lb) > 0 {
 			//Reprogram HNS (actually VFP) with the existing backends.
 			n.addLBBackend(ip, lb)
