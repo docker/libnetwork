@@ -18,9 +18,9 @@ type TCPProxy struct {
 // NewTCPProxy creates a new TCPProxy.
 func NewTCPProxy(frontendAddr, backendAddr *net.TCPAddr) (*TCPProxy, error) {
 	// detect version of hostIP to bind only to correct version
-	ipVersion := ipv4
+	ipVersion := ipVer4
 	if frontendAddr.IP.To4() == nil {
-		ipVersion = ipv6
+		ipVersion = ipVer6
 	}
 	listener, err := net.ListenTCP("tcp"+string(ipVersion), frontendAddr)
 	if err != nil {

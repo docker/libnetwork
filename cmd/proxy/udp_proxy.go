@@ -8,6 +8,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"golang.org/x/net/ipv4"
+	"golang.org/x/net/ipv6"
 )
 
 const (
@@ -51,28 +54,47 @@ type UDPProxy struct {
 	backendAddr    *net.UDPAddr
 	connTrackTable connTrackMap
 	connTrackLock  sync.Mutex
+	inet6Socket    bool
 }
 
 // NewUDPProxy creates a new UDPProxy.
 func NewUDPProxy(frontendAddr, backendAddr *net.UDPAddr) (*UDPProxy, error) {
 	// detect version of hostIP to bind only to correct version
-	ipVersion := ipv4
+	ipVersion := ipVer4
 	if frontendAddr.IP.To4() == nil {
-		ipVersion = ipv6
+		ipVersion = ipVer6
 	}
 	listener, err := net.ListenUDP("udp"+string(ipVersion), frontendAddr)
 	if err != nil {
 		return nil, err
 	}
+
+	frontendUDPAddr := listener.LocalAddr().(*net.UDPAddr)
+	inet6Socket := frontendUDPAddr.IP.To4() == nil
+
+	// INET_6 sockets (which are bound by default) serve
+	// both udp6 and udp4 packets, and provide IPv4 dst IPs
+	// in IPv6 CMSGs
+	if inet6Socket {
+		err = ipv6.NewPacketConn(listener).SetControlMessage(ipv6.FlagDst|ipv6.FlagInterface, true)
+	} else {
+		err = ipv4.NewPacketConn(listener).SetControlMessage(ipv4.FlagDst, true)
+	}
+
+	if err != nil {
+		log.Printf("Setting FlagDst on frontend socket %s failed, %s, was inet6? %t", frontendUDPAddr.String(), err, inet6Socket)
+	}
+
 	return &UDPProxy{
 		listener:       listener,
-		frontendAddr:   listener.LocalAddr().(*net.UDPAddr),
+		frontendAddr:   frontendUDPAddr,
 		backendAddr:    backendAddr,
 		connTrackTable: make(connTrackMap),
+		inet6Socket:    inet6Socket,
 	}, nil
 }
 
-func (proxy *UDPProxy) replyLoop(proxyConn *net.UDPConn, clientAddr *net.UDPAddr, clientKey *connTrackKey) {
+func (proxy *UDPProxy) replyLoop(proxyConn *net.UDPConn, clientAddr *net.UDPAddr, srcAddr *net.IP, clientKey *connTrackKey) {
 	defer func() {
 		proxy.connTrackLock.Lock()
 		delete(proxy.connTrackTable, *clientKey)
@@ -81,6 +103,27 @@ func (proxy *UDPProxy) replyLoop(proxyConn *net.UDPConn, clientAddr *net.UDPAddr
 	}()
 
 	readBuf := make([]byte, UDPBufSize)
+
+	// set the src IP of the response to match the DST of the
+	// initial client packet. Reuse the OOB buffer to prevent subsequent marshal calls
+	var oobProto []byte // serialised
+	var oobBuf []byte
+
+	if srcAddr != nil {
+		if srcAddr.To4() != nil {
+			cm := new(ipv4.ControlMessage)
+			cm.Src = *srcAddr
+			oobProto = cm.Marshal()
+		} else {
+			cm := new(ipv6.ControlMessage)
+			cm.Src = *srcAddr
+			oobProto = cm.Marshal()
+		}
+
+		// pre-allocate a buffer for passing into WriteMsgUDP
+		oobBuf = make([]byte, len(oobProto))
+	}
+
 	for {
 		proxyConn.SetReadDeadline(time.Now().Add(UDPConnTrackTimeout))
 	again:
@@ -97,7 +140,16 @@ func (proxy *UDPProxy) replyLoop(proxyConn *net.UDPConn, clientAddr *net.UDPAddr
 			return
 		}
 		for i := 0; i != read; {
-			written, err := proxy.listener.WriteToUDP(readBuf[i:read], clientAddr)
+			written := 0
+
+			if oobProto != nil {
+				// clone oobBuf as it will be mutated by WriteMsgUDP
+				copy(oobBuf, oobProto)
+				written, _, err = proxy.listener.WriteMsgUDP(readBuf[i:read], oobBuf, clientAddr)
+			} else {
+				written, err = proxy.listener.WriteToUDP(readBuf[i:read], clientAddr)
+			}
+
 			if err != nil {
 				return
 			}
@@ -110,7 +162,20 @@ func (proxy *UDPProxy) replyLoop(proxyConn *net.UDPConn, clientAddr *net.UDPAddr
 func (proxy *UDPProxy) Run() {
 	readBuf := make([]byte, UDPBufSize)
 	for {
-		read, from, err := proxy.listener.ReadFromUDP(readBuf)
+		// Use oob data/ControlMessages to get the dst IP of the
+		// received packet. This is used to ensure the src IP of the
+		// response matches when bound to 0.0.0.0 on  multi-homed
+		// machines.
+		var oobBuf []byte
+
+		if proxy.inet6Socket {
+			oobBuf = ipv6.NewControlMessage(ipv6.FlagDst | ipv6.FlagInterface)
+		} else {
+			oobBuf = ipv4.NewControlMessage(ipv4.FlagDst)
+		}
+
+		read, _, _, from, err := proxy.listener.ReadMsgUDP(readBuf, oobBuf)
+
 		if err != nil {
 			// NOTE: Apparently ReadFrom doesn't return
 			// ECONNREFUSED like Read do (see comment in
@@ -119,6 +184,27 @@ func (proxy *UDPProxy) Run() {
 				log.Printf("Stopping proxy on udp/%v for udp/%v (%s)", proxy.frontendAddr, proxy.backendAddr, err)
 			}
 			break
+		}
+
+		// Parse and extract the ControlMessage to get the dst IP.
+		// nil is a valid value and will result in the OS selecting
+		// the appropriate src IP automatically
+		var to *net.IP = nil
+
+		if from.IP.To4() == nil {
+			cm := new(ipv6.ControlMessage)
+			err = cm.Parse(oobBuf)
+
+			if err == nil {
+				to = &cm.Dst
+			}
+		} else {
+			cm := new(ipv4.ControlMessage)
+			err = cm.Parse(oobBuf)
+
+			if err == nil {
+				to = &cm.Dst
+			}
 		}
 
 		fromKey := newConnTrackKey(from)
@@ -132,7 +218,7 @@ func (proxy *UDPProxy) Run() {
 				continue
 			}
 			proxy.connTrackTable[*fromKey] = proxyConn
-			go proxy.replyLoop(proxyConn, from, fromKey)
+			go proxy.replyLoop(proxyConn, from, to, fromKey)
 		}
 		proxy.connTrackLock.Unlock()
 		for i := 0; i != read; {
