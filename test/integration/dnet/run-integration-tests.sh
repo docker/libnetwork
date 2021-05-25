@@ -45,7 +45,7 @@ function run_overlay_local_tests() {
     cmap[dnet-3-local]=dnet-3-local
 
     ## Run the test cases
-    ./integration-tmp/bin/bats ./test/integration/dnet/overlay-local.bats
+    ./integration-tmp/bin/bats --tap ./test/integration/dnet/overlay-local.bats
 
     ## Teardown
     stop_dnet 1 local 1>>${INTEGRATION_ROOT}/test.log 2>&1
@@ -67,7 +67,7 @@ function run_overlay_consul_tests() {
     cmap[dnet-3-consul]=dnet-3-consul
 
     ## Run the test cases
-    ./integration-tmp/bin/bats ./test/integration/dnet/overlay-consul.bats
+    ./integration-tmp/bin/bats --tap ./test/integration/dnet/overlay-consul.bats
 
     ## Teardown
     stop_dnet 1 consul 1>>${INTEGRATION_ROOT}/test.log 2>&1
@@ -148,7 +148,7 @@ function run_multi_consul_tests() {
     cmap[dnet-3-multi_consul]=dnet-3-multi_consul
 
     ## Run the test cases
-    ./integration-tmp/bin/bats ./test/integration/dnet/multi.bats
+    ./integration-tmp/bin/bats --tap ./test/integration/dnet/multi.bats
 
     ## Teardown
     stop_dnet 1 multi_consul 1>>${INTEGRATION_ROOT}/test.log 2>&1
@@ -194,7 +194,7 @@ function run_multi_etcd_tests() {
     cmap[dnet-3-multi_etcd]=dnet-3-multi_etcd
 
     ## Run the test cases
-    ./integration-tmp/bin/bats ./test/integration/dnet/multi.bats
+    ./integration-tmp/bin/bats --tap ./test/integration/dnet/multi.bats
 
     ## Teardown
     stop_dnet 1 multi_etcd 1>>${INTEGRATION_ROOT}/test.log 2>&1

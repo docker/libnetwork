@@ -326,7 +326,7 @@ func (d *dnetConnection) GetListenAddress() string {
 }
 
 func (d *dnetConnection) GetRemoteAddressList() []string {
-	return []string{d.Orchestration.Peer}
+	return strings.Split(d.Orchestration.Peer, ",")
 }
 
 func (d *dnetConnection) ListenClusterEvents() <-chan cluster.ConfigEventType {

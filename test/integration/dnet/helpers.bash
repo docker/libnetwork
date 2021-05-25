@@ -184,6 +184,7 @@ title = "LibNetwork Configuration file for ${name}"
       provider = "${provider}"
       address = "${address}"
 EOF
+    echo "Use external KV"
     else
 	cat > ${tomlfile} <<EOF
 title = "LibNetwork Configuration file for ${name}"
@@ -195,6 +196,8 @@ title = "LibNetwork Configuration file for ${name}"
   bind = "eth0"
   peer = "${neighbors}"
 EOF
+    echo "In agent mode"
+    cat ${tomlfile}
     fi
 
     cat ${tomlfile}
