@@ -167,8 +167,10 @@ func (nDB *NetworkDB) handleTableEvent(tEvent *TableEvent, isBulkSync bool) bool
 	}
 
 	nDB.Lock()
+	var entryPresent bool
 	e, err := nDB.getEntry(tEvent.TableName, tEvent.NetworkID, tEvent.Key)
 	if err == nil {
+		entryPresent = true
 		// We have the latest state. Ignore the event
 		// since it is stale.
 		if e.ltime >= tEvent.LTime {
@@ -221,7 +223,12 @@ func (nDB *NetworkDB) handleTableEvent(tEvent *TableEvent, isBulkSync bool) bool
 	var op opType
 	switch tEvent.Type {
 	case TableEventTypeCreate:
-		op = opCreate
+		// Broadcast UPDATE event instead of CREATE if the entry already existed in networkdb
+		if entryPresent {
+			op = opUpdate
+		} else {
+			op = opCreate
+		}
 	case TableEventTypeUpdate:
 		op = opUpdate
 	case TableEventTypeDelete:
