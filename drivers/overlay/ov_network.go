@@ -605,7 +605,16 @@ func (n *network) setupSubnetSandbox(s *subnet, brName, vxlanName string) error 
 
 	err := createVxlan(vxlanName, s.vni, n.maxMTU())
 	if err != nil {
-		return err
+		if !strings.Contains(err.Error(), "file exists") {
+			return err
+		}
+		logrus.Warnf("The orphaned vxlan interface %s already exists in host network namespace, delete it", vxlanName)
+		if err := deleteInterface(vxlanName); err != nil {
+			return err
+		}
+		if err := createVxlan(vxlanName, s.vni, n.maxMTU()); err != nil {
+			return err
+		}
 	}
 
 	if err := sbox.AddInterface(vxlanName, "vxlan",
