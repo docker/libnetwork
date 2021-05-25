@@ -182,10 +182,10 @@ func (sb *sandbox) Statistics() (map[string]*types.InterfaceStatistics, error) {
 }
 
 func (sb *sandbox) Delete() error {
-	return sb.delete(false)
+	return sb.delete()
 }
 
-func (sb *sandbox) delete(force bool) error {
+func (sb *sandbox) delete() error {
 	sb.Lock()
 	if sb.inDelete {
 		sb.Unlock()
@@ -208,10 +208,10 @@ func (sb *sandbox) delete(force bool) error {
 	retain := false
 	for _, ep := range sb.getConnectedEndpoints() {
 		// gw network endpoint detach and removal are automatic
-		if ep.endpointInGWNetwork() && !force {
+		if ep.endpointInGWNetwork() {
 			continue
 		}
-		// Retain the sanbdox if we can't obtain the network from store.
+		// Retain the sandbox if we can't obtain the network from store.
 		if _, err := c.getNetworkFromStore(ep.getNetwork().ID()); err != nil {
 			if c.isDistributedControl() {
 				retain = true
@@ -220,13 +220,7 @@ func (sb *sandbox) delete(force bool) error {
 			continue
 		}
 
-		if !force {
-			if err := ep.Leave(sb); err != nil {
-				logrus.Warnf("Failed detaching sandbox %s from endpoint %s: %v\n", sb.ID(), ep.ID(), err)
-			}
-		}
-
-		if err := ep.Delete(force); err != nil {
+		if err := ep.Delete(true); err != nil {
 			logrus.Warnf("Failed deleting endpoint %s: %v\n", ep.ID(), err)
 		}
 	}

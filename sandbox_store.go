@@ -275,7 +275,7 @@ func (c *controller) sandboxCleanup(activeSandboxes map[string]interface{}) {
 
 		if _, ok := activeSandboxes[sb.ID()]; !ok {
 			logrus.Infof("Removing stale sandbox %s (%s)", sb.id, sb.containerID)
-			if err := sb.delete(true); err != nil {
+			if err := sb.delete(); err != nil {
 				logrus.Errorf("Failed to delete sandbox %s while trying to cleanup: %v", sb.id, err)
 			}
 			continue

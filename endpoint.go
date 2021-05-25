@@ -844,7 +844,7 @@ func (ep *endpoint) Delete(force bool) error {
 		}
 	}
 
-	if err = n.getController().deleteFromStore(ep); err != nil {
+	if err = n.getController().deleteFromStore(ep); err != nil && !force {
 		return err
 	}
 
