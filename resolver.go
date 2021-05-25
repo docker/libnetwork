@@ -538,6 +538,12 @@ func (r *resolver) ServeDNS(w dns.ResponseWriter, query *dns.Msg) {
 			break
 		}
 		if resp == nil {
+			logrus.Debugf("[resolver] failed to resolve through external DNS servers")
+			resp = new(dns.Msg)
+			resp.SetRcode(query, dns.RcodeServerFailure)
+			if err = w.WriteMsg(resp); err != nil {
+				logrus.Errorf("[resolver] failed to write error response: %s", err)
+			}
 			return
 		}
 	}
