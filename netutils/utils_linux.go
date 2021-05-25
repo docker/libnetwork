@@ -17,9 +17,8 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-var (
-	networkGetRoutesFct func(netlink.Link, int) ([]netlink.Route, error)
-)
+// networkGetRoutesFct is used to mock out ns.NlHandle().RouteList in tests
+var networkGetRoutesFct func(netlink.Link, int) ([]netlink.Route, error)
 
 // CheckRouteOverlaps checks whether the passed network overlaps with any existing routes
 func CheckRouteOverlaps(toCheck *net.IPNet) error {
@@ -69,10 +68,7 @@ func GenerateIfaceName(nlh *netlink.Handle, prefix string, len int) (string, err
 // list the first IPv4 address which does not conflict with other
 // interfaces on the system.
 func ElectInterfaceAddresses(name string) ([]*net.IPNet, []*net.IPNet, error) {
-	var (
-		v4Nets []*net.IPNet
-		v6Nets []*net.IPNet
-	)
+	var v4Nets, v6Nets []*net.IPNet
 
 	defer osl.InitOSContext()()
 
