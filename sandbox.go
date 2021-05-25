@@ -439,7 +439,7 @@ func (sb *sandbox) HandleQueryResp(name string, ip net.IP) {
 
 func (sb *sandbox) ResolveIP(ip string) string {
 	var svc string
-	logrus.Debugf("IP To resolve %v", ip)
+	debugf("IP to resolve %v", ip)
 
 	for _, ep := range sb.getConnectedEndpoints() {
 		n := ep.getNetwork()
@@ -466,7 +466,7 @@ func (sb *sandbox) ResolveService(name string) ([]*net.SRV, []net.IP) {
 	srv := []*net.SRV{}
 	ip := []net.IP{}
 
-	logrus.Debugf("Service name To resolve: %v", name)
+	debugf("Service name to resolve: %v", name)
 
 	// There are DNS implementations that allow SRV queries for names not in
 	// the format defined by RFC 2782. Hence specific validations checks are
@@ -529,7 +529,7 @@ func (sb *sandbox) ResolveName(name string, ipType int) ([]net.IP, bool) {
 	// {a.b in network c.d},
 	// {a in network b.c.d},
 
-	logrus.Debugf("Name To resolve: %v", name)
+	debugf("Name to resolve: %v", name)
 	name = strings.TrimSuffix(name, ".")
 	reqName := []string{name}
 	networkName := []string{""}
@@ -637,7 +637,7 @@ func (sb *sandbox) resolveName(req string, networkName string, epList []*endpoin
 func (sb *sandbox) SetKey(basePath string) error {
 	start := time.Now()
 	defer func() {
-		logrus.Debugf("sandbox set key processing took %s for container %s", time.Since(start), sb.ContainerID())
+		debugf("sandbox set key processing took %s for container %s", time.Since(start), sb.ContainerID())
 	}()
 
 	if basePath == "" {
@@ -691,7 +691,7 @@ func (sb *sandbox) SetKey(basePath string) error {
 }
 
 func (sb *sandbox) EnableService() (err error) {
-	logrus.Debugf("EnableService %s START", sb.containerID)
+	debugf("EnableService %s START", sb.containerID)
 	defer func() {
 		if err != nil {
 			sb.DisableService()
@@ -705,12 +705,12 @@ func (sb *sandbox) EnableService() (err error) {
 			ep.enableService()
 		}
 	}
-	logrus.Debugf("EnableService %s DONE", sb.containerID)
+	debugf("EnableService %s DONE", sb.containerID)
 	return nil
 }
 
 func (sb *sandbox) DisableService() (err error) {
-	logrus.Debugf("DisableService %s START", sb.containerID)
+	debugf("DisableService %s START", sb.containerID)
 	failedEps := []string{}
 	defer func() {
 		if len(failedEps) > 0 {
@@ -726,7 +726,7 @@ func (sb *sandbox) DisableService() (err error) {
 			ep.disableService()
 		}
 	}
-	logrus.Debugf("DisableService %s DONE", sb.containerID)
+	debugf("DisableService %s DONE", sb.containerID)
 	return nil
 }
 
@@ -735,7 +735,7 @@ func releaseOSSboxResources(osSbox osl.Sandbox, ep *endpoint) {
 		// Only remove the interfaces owned by this endpoint from the sandbox.
 		if ep.hasInterface(i.SrcName()) {
 			if err := i.Remove(); err != nil {
-				logrus.Debugf("Remove interface %s failed: %v", i.SrcName(), err)
+				logrus.WithError(err).Warnf("Remove interface %s failed", i.SrcName())
 			}
 		}
 	}
@@ -749,7 +749,7 @@ func releaseOSSboxResources(osSbox osl.Sandbox, ep *endpoint) {
 	if len(vip) > 0 && lbModeIsDSR {
 		ipNet := &net.IPNet{IP: vip, Mask: net.CIDRMask(32, 32)}
 		if err := osSbox.RemoveAliasIP(osSbox.GetLoopbackIfaceName(), ipNet); err != nil {
-			logrus.WithError(err).Debugf("failed to remove virtual ip %v to loopback", ipNet)
+			logrus.WithError(err).Warnf("Failed to remove virtual ip %v to loopback", ipNet)
 		}
 	}
 
@@ -760,7 +760,7 @@ func releaseOSSboxResources(osSbox osl.Sandbox, ep *endpoint) {
 	// Remove non-interface routes.
 	for _, r := range joinInfo.StaticRoutes {
 		if err := osSbox.RemoveStaticRoute(r); err != nil {
-			logrus.Debugf("Remove route failed: %v", err)
+			logrus.WithError(err).Warnf("Remove route failed")
 		}
 	}
 }
