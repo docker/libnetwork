@@ -21,13 +21,11 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/pkg/discovery"
 	"github.com/docker/docker/pkg/reexec"
 	"github.com/docker/libnetwork"
 	"github.com/docker/libnetwork/api"
 	"github.com/docker/libnetwork/cluster"
 	"github.com/docker/libnetwork/config"
-	"github.com/docker/libnetwork/datastore"
 	"github.com/docker/libnetwork/driverapi"
 	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/netutils"
@@ -118,69 +116,7 @@ func processConfig(cfg *config.Config) []config.Option {
 		options = append(options, config.OptionLabels(cfg.Daemon.Labels))
 	}
 
-	if dcfg, ok := cfg.Scopes[datastore.GlobalScope]; ok && dcfg.IsValid() {
-		options = append(options, config.OptionKVProvider(dcfg.Client.Provider))
-		options = append(options, config.OptionKVProviderURL(dcfg.Client.Address))
-	}
-
-	dOptions, err := startDiscovery(&cfg.Cluster)
-	if err != nil {
-		logrus.Infof("Skipping discovery : %s", err.Error())
-	} else {
-		options = append(options, dOptions...)
-	}
-
 	return options
-}
-
-func startDiscovery(cfg *config.ClusterCfg) ([]config.Option, error) {
-	if cfg == nil {
-		return nil, errors.New("discovery requires a valid configuration")
-	}
-
-	hb := time.Duration(cfg.Heartbeat) * time.Second
-	if hb == 0 {
-		hb = defaultHeartbeat
-	}
-	logrus.Infof("discovery : %s %s", cfg.Discovery, hb.String())
-	d, err := discovery.New(cfg.Discovery, hb, ttlFactor*hb, map[string]string{})
-	if err != nil {
-		return nil, err
-	}
-
-	if cfg.Address == "" {
-		iface, err := net.InterfaceByName("eth0")
-		if err != nil {
-			return nil, err
-		}
-		addrs, err := iface.Addrs()
-		if err != nil || len(addrs) == 0 {
-			return nil, err
-		}
-		ip, _, _ := net.ParseCIDR(addrs[0].String())
-		cfg.Address = ip.String()
-	}
-
-	if ip := net.ParseIP(cfg.Address); ip == nil {
-		return nil, errors.New("address config should be either ipv4 or ipv6 address")
-	}
-
-	if err := d.Register(cfg.Address + ":0"); err != nil {
-		return nil, err
-	}
-
-	options := []config.Option{config.OptionDiscoveryWatcher(d), config.OptionDiscoveryAddress(cfg.Address)}
-	go func() {
-		for {
-			select {
-			case <-time.After(hb):
-				if err := d.Register(cfg.Address + ":0"); err != nil {
-					logrus.Warn(err)
-				}
-			}
-		}
-	}()
-	return options, nil
 }
 
 func dnetApp(stdout, stderr io.Writer) error {
